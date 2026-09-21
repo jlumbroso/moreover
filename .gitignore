@@ -7,3 +7,6 @@
 # Python temporary files
 __pycache__/
 *.py[cod]
+
+# Rust build artifacts (Cargo.lock is committed — this is a binary crate)
+/target

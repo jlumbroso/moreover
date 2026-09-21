@@ -1,0 +1,12 @@
+[package]
+name = "moreover"
+version = "0.0.1"
+edition = "2021"
+description = "A pager for readers who can't press space — cursor-based, non-interactive pagination for LLMs, agents, and scripts."
+license = "MIT"
+repository = "https://github.com/jlumbroso/moreover"
+readme = "README.md"
+keywords = ["pager", "llm", "cli", "pagination", "cursor"]
+categories = ["command-line-utilities"]
+
+[dependencies]

@@ -1,9 +1,9 @@
 # CLAUDE.md - Project Guidance
 
-- **Project**: [Project Name]
-- **Human**: [Human collaborator(s)]
-- **AI**: [AI participant(s) — with the crew layer, the roster lives in docs/inbox/agent-sessions.json; name the coordinator seat here]
-- **Last Updated**: [Date]
+- **Project**: `moreover` — a non-interactive, cursor-based pager for readers who can't press space (LLMs, agents, scripts). **PUBLIC FROM DAY ONE** — Jérémie's first build-in-public: every commit is a publication, so publication gates apply to every byte (no estate-internal material beyond what is deliberately published here, no secrets ever, no session identifiers). Implementation: **Rust** (his ruling, "for io reasons" — ADR-0002). Estate coordination lives in the private commons HQ, never here.
+- **Human**: Jérémie Lumbroso
+- **AI**: founding crew to be recruited by Jérémie (founding brief in `docs/inbox/`; roster in `docs/inbox/agent-sessions.json`; seats self-name at consent)
+- **Last Updated**: 2026-09-21 (identity pass by Operator 5 of lumbroso-hq at Jérémie's commission; the crew's chair to rewrite on consent)
 
 ---
 
@@ -241,18 +241,24 @@ If the script was successfully used, append as comments how, and what the outcom
 ## Project Context
 
 ### What we're building:
-[1-2 sentences describing the project goal]
+A pager for a reader that can't press space: `output | moreover -10` prints a
+page plus a trailer line (`<moreover: page 1, 10/123 lines, cursor: Ae2e>`),
+and `moreover -c Ae2e --all` resumes the same stream later. The trailer is
+the interface — it appears in the reader's context exactly when the reader
+needs to know there is more. Also a working demo of ADRs4AI deliberative
+programming and of ThirdX principles, and a one-shot launch piece announcing
+the ecosystem.
 
 ### Current focus:
-[What's being worked on right now]
+ADR-0002's four open questions → first Rust implementation. The crate name
+`moreover` was free on crates.io as of 2026-09-21 (reserve at first publish).
 
 ### Key decisions made:
-- [Decision 1] - See `docs/adr/0001-*.md`
-- [Decision 2] - See `docs/adr/0002-*.md`
+- The name (`moreover`; Mint's strike, ratified by use) - See `docs/adr/0001-the-name-moreover.md`
+- Rust, the cursor model, public-from-day-one - See `docs/adr/0002-pagination-for-a-reader-without-hands.md`
 
 ### Open questions:
-- [Question 1]
-- [Question 2]
+- QST-CURSOR-STORE, QST-CURSOR-SEMANTICS, QST-PAGE-UNITS, QST-TRAILER-GRAMMAR — all in ADR-0002, each with a recommendation awaiting answers
 
 ---
 
