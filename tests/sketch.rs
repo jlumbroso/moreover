@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use moreover::chunker::Unit;
 use moreover::paging::{page_new, page_resume, Take};
-use moreover::store::FsStore;
+use moreover::store::{Cursor, FsStore, Store};
 use moreover::trailer::{render_with, TrailerData, V0};
 
 static SCRATCH_SEQ: AtomicU64 = AtomicU64::new(0);
@@ -133,6 +133,24 @@ fn empty_input_is_calm() {
     let t = page_new(&store, b"", Take::Units(10), Unit::Lines, &mut out).unwrap();
     assert!(out.is_empty());
     assert_eq!(trailer(&t), "<moreover: page 1, 0/0 lines, cursor: null>");
+}
+
+#[test]
+fn cursor_ids_always_mix_letters_and_digits() {
+    // Estate petname doctrine (folded in via ADR-0003 iteration 2): an
+    // all-digit id reads as a counter — a model reader may extrapolate a
+    // sequence instead of reusing the printed id — and an all-letter id
+    // reads as a word. Minting must guarantee the mixed, code-like form.
+    let store = scratch_store("mixed");
+    for _ in 0..100 {
+        let id = store
+            .put_cursor(&Cursor { spool: "s".into(), offset: 0, line: 0, page: 1 })
+            .unwrap();
+        assert!(
+            id.bytes().any(|b| b.is_ascii_digit()) && id.bytes().any(|b| b.is_ascii_alphabetic()),
+            "minted id '{id}' is not mixed letter+digit"
+        );
+    }
 }
 
 #[test]

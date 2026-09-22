@@ -154,9 +154,21 @@ impl Store for FsStore {
 const ALPHABET: &[u8] = b"0123456789abcdefghjkmnpqrstvwxyz";
 
 fn mint_id(len: usize) -> String {
-    let mut bytes = vec![0u8; len];
-    fill_random(&mut bytes);
-    bytes.iter().map(|b| ALPHABET[(*b as usize) % 32] as char).collect()
+    // Ids must mix at least one letter and one digit: an all-digit id
+    // reads as a count and invites the reader to extrapolate a sequence;
+    // an all-letter id reads as a word. Mixed, code-like ids are the form
+    // model readers reliably retype (estate petname doctrine, per ThirdX
+    // practice; internal experiments informed this).
+    loop {
+        let mut bytes = vec![0u8; len];
+        fill_random(&mut bytes);
+        let id: String = bytes.iter().map(|b| ALPHABET[(*b as usize) % 32] as char).collect();
+        let has_digit = id.bytes().any(|b| b.is_ascii_digit());
+        let has_letter = id.bytes().any(|b| b.is_ascii_alphabetic());
+        if has_digit && has_letter {
+            return id;
+        }
+    }
 }
 
 fn fill_random(buf: &mut [u8]) {

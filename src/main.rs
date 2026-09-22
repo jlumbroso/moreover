@@ -27,6 +27,8 @@ Paging:
   --bytes N             page size in bytes
   --all                 everything (remaining)
   -c, --cursor ID       resume the stream that ID names
+                        (a cursor is only valid if moreover printed it —
+                        never invent or extrapolate one)
 
 State:
   --state-dir PATH      spool/cursor store (default: $MOREOVER_STATE_DIR,
