@@ -121,7 +121,7 @@ action item, not a question.
 
 ## Action Items
 
-- [ ] Reserve `moreover` on crates.io at first publish - Owner: founding crew
+- [x] Reserve `moreover` on crates.io at first publish - Owner: founding crew — done 2026-09-22: `moreover` v0.0.1 published to crates.io by Ribbon 5 (Jérémie's `cargo login`); the name is held
 
 ## Iterations
 

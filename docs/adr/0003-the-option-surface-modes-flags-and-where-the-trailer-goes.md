@@ -3,7 +3,7 @@
 # ADR-0003: The option surface — modes, flags, and where the trailer goes
 
 - **Date**: 2026-09-22
-- **Iteration**: 1
+- **Iteration**: 2
 - **Status**: Draft
 - **Deciders**: Jérémie Lumbroso; Ribbon 5
 
@@ -62,7 +62,7 @@ Every option belongs to exactly one kind; a flag that fits none is a smell:
 | Kind | What it governs | v0 members | Candidate members |
 |---|---|---|---|
 | **Paging** | how much, in what unit | `-N`/`-n`/`--lines`, `--bytes`, `--all` | `--tokens` (ADR-0002 follow-up), `--overlap N` |
-| **Resumption** | which stream, from where | `-c`/`--cursor` | `--peek`, `--drop CURSOR`, file arguments (`moreover FILE`) |
+| **Resumption** | which stream, from where | `-c`/`--cursor` | `--peek`, `--stat CURSOR`, `--drop CURSOR`, file arguments (`moreover FILE`) |
 | **Trailer** | the metadata surface | `--schema`, `--schema-show`, `--schema-template` | `--trailer DEST` (QST below), `--json` |
 | **State** | where state lives, its lifecycle | `--state-dir` (+ env) | `--ls`, `--gc [DAYS]` |
 | **Introspection** | the tool describing itself to its reader | `--help`, `--version`, `--schema-show` | machine-readable self-description (QST below) |
@@ -86,6 +86,54 @@ Candidate members glossed (the brainstorm, so answering can prune):
   legible desk, not a hidden cache.
 - **`--json`** — the trailer's fields as one JSON object (a schema, not a
   flag bypassing schemas: plausibly just `--schema json`).
+- **`--stat CURSOR`** *(added Iteration 2)* — describe a cursor without
+  consuming anything: which stream, position, remaining. The
+  map-before-territory move: give the reader the shape before the
+  content.
+
+### Design commitments (Iteration 2 — from the commissioned reviews)
+
+Standing principles for every present and future option, distilled from
+the estate's model-first design practice (ThirdX; specifics live in
+private substrate, consequences recorded here):
+
+1. **Flag names are self-describing.** A model reader often meets a flag
+   cold, inside an error message or a trailer — `--schema-show` over
+   `-S`. Short forms exist only for the paging counts, where fifty years
+   of pager muscle memory is itself the affordance.
+2. **Strict at the syntactic boundary, tolerant at the semantic one.**
+   Malformed flags, cursors, and schema names are rejected with a precise
+   message, never guessed at; stream *content* is accepted generously.
+3. **Errors are written to the reader.** A bad cursor or expired spool
+   produces a message addressed to the model that will act on it — same
+   surface discipline as the trailer, not a log line.
+4. **Every flag names the error class it prevents.** A proposed option
+   that cannot say what reader failure it forecloses doesn't ship.
+   (Corollary, applied to this ADR's own headline: stderr-vs-stdout is a
+   *false* conflict — the stderr default serves model and human alike;
+   the destination flag exists for harnesses that capture only stdout,
+   a real and specific failure.)
+5. **Durable over compensatory.** Options encode durable contract
+   (schemas, cursors, units), never workarounds for a current model
+   generation's quirks; the token unit must be designed
+   tokenizer-agnostic or it drifts into the compensatory column.
+
+Public prior art this design stands on, citable freely: Anthropic's
+tool-writing guidance (prefer meaningful over low-level identifiers),
+the Dexter/BAML result on short ids cutting reference errors,
+Biilmann's Agent Experience (AX), and Arcade's MX — the genre is
+theirs; `moreover`'s claim is only the composition.
+
+**Cursor-id doctrine folded in** (implemented 2026-09-22, commit
+`3e18acc`): minted ids now guarantee a mixed letter+digit form (an
+all-digit id reads as a counter and invites extrapolation; an all-letter
+id reads as a word — both retype poorly per internal estate
+experiments); the help text carries the don't-invent rule ("a cursor is
+only valid if moreover printed it"); cursor scope is **stream-local**,
+stated here explicitly rather than assumed; and the id never encodes the
+position (it is a petname resolved by the store — the printed cursor is
+identity, the page number is display, and only the former survives a
+reader's context compaction).
 
 ## Questions
 
@@ -173,6 +221,35 @@ own early use runs into cursor clutter before reader pain, flip to **B**.
 
 ---
 
+### QST-THIRDX-FRAMING: How much ThirdX may this public repo say out loud?
+- Status: unanswered
+- Why asking: the commissioned review found there is currently no public ThirdX writing — this repo may be the framework's first public mouthpiece, which is a publication decision only its author can make.
+- Need: pick a letter (or override — any shape answers)
+
+Options:
+- **A — name it, cite the public prior art, hold the rest**: keep naming "ThirdX principles" as the repo already does (README, founding brief); cite AX/MX/Anthropic-guidance/BAML as the public lineage; publish no framework specifics (no ADR numbers, no experiment results, no framing paragraphs) until thirdx.design exists.
+- **B — carry the framework's framing here**: include the framework's own positioning language (its scope-limiting framing paragraph first, per its author's standing rule) and let moreover be the first public statement, deliberately.
+- **C — go quieter**: drop ThirdX naming from future public materials until the site exists; describe the design principles anonymously.
+
+**Recommendation**: (by Ribbon 5, Claude Fable 5)
+
+**A — name it, cite the public prior art, hold the rest.** *Rationale*:
+the name is already public in this repo by your founding choices, so C
+would be a retraction; but B makes a product repo the framework's
+canonical first statement, which pre-empts the launch you have planned
+elsewhere — A preserves that sequencing while keeping this repo honest
+about its lineage (conceding the genre to AX/MX is, per the review, the
+framework's own credibility posture). *Confidence*: 0.75 — because the
+sequencing logic is strong but the launch-piece ambition ("a one-shot
+launch tool that announces the ecosystem") is yours to weigh against it.
+*If wrong*: if you want moreover to BE the first public statement, that
+is **B** — deliberate, with the framing paragraph you choose.
+
+**ANS:** (by )
+[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+
+---
+
 ## Consequences
 
 - The taxonomy becomes the standing map: every future flag names its kind
@@ -184,8 +261,8 @@ own early use runs into cursor clutter before reader pain, flip to **B**.
 
 ## Action Items
 
-- [ ] Answer the three QSTs - Owner: Jérémie
-- [ ] Fold in the ThirdX-relevance and petname-doctrine reviews (commissioned 2026-09-22) - Owner: Ribbon 5
+- [ ] Answer the four QSTs - Owner: Jérémie
+- [x] Fold in the ThirdX-relevance and petname-doctrine reviews (commissioned 2026-09-22) - Owner: Ribbon 5 — folded at Iteration 2; cursor-id changes implemented same day (`3e18acc`)
 - [ ] Implement the accepted cut with tests per the gate - Owner: Ribbon 5
 
 ## Iterations
@@ -194,6 +271,12 @@ own early use runs into cursor clutter before reader pain, flip to **B**.
 - Trigger: his post-v0 observation that trailer destination must be an option, plus "what other modes might we want."
 - Contributors: Jérémie (trigger, the destination asks); Ribbon 5 (taxonomy, candidates, recommendations).
 - Outcome: `— → Draft`
+
+### Iteration 2 (2026-09-22)
+- Trigger: the two commissioned estate reviews returned (ThirdX-corpus relevance; petname doctrine — both read by subagents, distilled here without republishing private substrate).
+- Contributors: Ribbon 5 (fold-in); the estate's prior work (via the reviews).
+- Changes: Design-commitments subsection added (self-describing names; strict-syntax/tolerant-semantics; reader-addressed errors; error-class discipline; durable-over-compensatory); `--stat` joined the candidates (map-before-territory); public prior art cited (AX, MX, Anthropic guidance, BAML); cursor-id doctrine implemented in code; QST-THIRDX-FRAMING opened.
+- Outcome: status unchanged (`Draft`); four QSTs now await answers.
 
 ---
 
