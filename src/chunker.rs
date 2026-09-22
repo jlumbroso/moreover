@@ -60,9 +60,41 @@ pub fn advance(data: &[u8], from: usize, count: usize, unit: Unit) -> usize {
     }
 }
 
+/// Byte offset after retreating `count` units back from `from`, clamped
+/// to the start. In line mode it lands on a line start, so an overlap
+/// reprint never begins mid-line.
+pub fn retreat(data: &[u8], from: usize, count: usize, unit: Unit) -> usize {
+    let from = from.min(data.len());
+    match unit {
+        Unit::Bytes => from.saturating_sub(count),
+        Unit::Lines => {
+            if from == 0 || count == 0 {
+                return from;
+            }
+            let mut starts = vec![0usize];
+            for i in 0..from {
+                if data[i] == b'\n' && i + 1 < from {
+                    starts.push(i + 1);
+                }
+            }
+            starts[starts.len().saturating_sub(count)]
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retreat_lands_on_line_starts() {
+        let data = b"one\ntwo\nthree\nfour\n";
+        // from the start of "four" (14), back 2 lines => start of "two" (4)
+        assert_eq!(retreat(data, 14, 2, Unit::Lines), 4);
+        assert_eq!(retreat(data, 14, 99, Unit::Lines), 0);
+        assert_eq!(retreat(data, 0, 3, Unit::Lines), 0);
+        assert_eq!(retreat(data, 10, 4, Unit::Bytes), 6);
+    }
 
     #[test]
     fn final_line_without_newline_counts() {

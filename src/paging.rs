@@ -30,17 +30,27 @@ pub fn page_new(
     deliver(store, &spool, input, 0, 1, take, unit, out)
 }
 
-/// Resume from a cursor minted by an earlier invocation.
+/// Resume from a cursor minted by an earlier invocation. With
+/// `overlap > 0`, the last `overlap` units before the cursor are
+/// reprinted first — a resuming reader re-anchors context without a
+/// second call (ADR-0003, `--overlap`). The overlap is a re-print, not
+/// progress: the trailer's numbers are unaffected by it.
 pub fn page_resume(
     store: &dyn Store,
     cursor_id: &str,
     take: Take,
     unit: Unit,
+    overlap: usize,
     out: &mut dyn Write,
 ) -> io::Result<TrailerData> {
     let cursor = store.get_cursor(cursor_id)?;
     let data = store.read_spool(&cursor.spool)?;
-    deliver(store, &cursor.spool, &data, cursor.offset as usize, cursor.page, take, unit, out)
+    let start = (cursor.offset as usize).min(data.len());
+    if overlap > 0 && start > 0 {
+        let back = crate::chunker::retreat(&data, start, overlap, unit);
+        out.write_all(&data[back..start])?;
+    }
+    deliver(store, &cursor.spool, &data, start, cursor.page, take, unit, out)
 }
 
 #[allow(clippy::too_many_arguments)]

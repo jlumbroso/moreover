@@ -50,7 +50,7 @@ fn the_founding_sketch_roundtrip() {
     assert_eq!(trailer(&t1), format!("<moreover: page 1, 10/123 lines, cursor: {id}>"));
 
     let mut rest = Vec::new();
-    let t2 = page_resume(&store, &id, Take::All, Unit::Lines, &mut rest).unwrap();
+    let t2 = page_resume(&store, &id, Take::All, Unit::Lines, 0, &mut rest).unwrap();
     assert_eq!([page1, rest].concat(), input, "page 1 + the rest must be the whole stream");
     assert_eq!(trailer(&t2), "<moreover: 123/123 lines, cursor: null>");
 }
@@ -62,10 +62,10 @@ fn sized_resumes_continue_page_numbers_to_exhaustion() {
 
     let mut out = Vec::new();
     let t1 = page_new(&store, &input, Take::Units(10), Unit::Lines, &mut out).unwrap();
-    let t2 = page_resume(&store, t1.cursor.as_ref().unwrap(), Take::Units(10), Unit::Lines, &mut out)
+    let t2 = page_resume(&store, t1.cursor.as_ref().unwrap(), Take::Units(10), Unit::Lines, 0, &mut out)
         .unwrap();
     assert_eq!((t2.page, t2.shown, t2.total), (2, 20, 25));
-    let t3 = page_resume(&store, t2.cursor.as_ref().unwrap(), Take::Units(10), Unit::Lines, &mut out)
+    let t3 = page_resume(&store, t2.cursor.as_ref().unwrap(), Take::Units(10), Unit::Lines, 0, &mut out)
         .unwrap();
     // The last page is short and final: exact exhaustion prints null even
     // on a sized call.
@@ -87,8 +87,8 @@ fn cursors_are_immutable_so_rereads_are_idempotent() {
 
     let mut a = Vec::new();
     let mut b = Vec::new();
-    let ta = page_resume(&store, &id, Take::Units(10), Unit::Lines, &mut a).unwrap();
-    let tb = page_resume(&store, &id, Take::Units(10), Unit::Lines, &mut b).unwrap();
+    let ta = page_resume(&store, &id, Take::Units(10), Unit::Lines, 0, &mut a).unwrap();
+    let tb = page_resume(&store, &id, Take::Units(10), Unit::Lines, 0, &mut b).unwrap();
     assert_eq!(a, b);
     assert_eq!((ta.page, ta.shown), (tb.page, tb.shown));
 }
@@ -105,7 +105,7 @@ fn cursor_ids_resume_case_insensitively() {
     let shouted = t1.cursor.unwrap().to_ascii_uppercase();
 
     let mut rest = Vec::new();
-    let t2 = page_resume(&store, &shouted, Take::All, Unit::Lines, &mut rest).unwrap();
+    let t2 = page_resume(&store, &shouted, Take::All, Unit::Lines, 0, &mut rest).unwrap();
     assert_eq!(t2.cursor, None);
     assert_eq!(rest, numbered_lines(12)[out.len()..].to_vec());
 }
@@ -151,6 +151,26 @@ fn cursor_ids_always_mix_letters_and_digits() {
             "minted id '{id}' is not mixed letter+digit"
         );
     }
+}
+
+#[test]
+fn overlap_reprints_context_without_counting_it() {
+    // --overlap (ADR-0003, reader-first cut): a resuming model re-anchors
+    // by seeing the tail of the previous page again. The reprint must not
+    // move the trailer's numbers — it is context, not progress.
+    let store = scratch_store("overlap");
+    let input = numbered_lines(20);
+
+    let mut page1 = Vec::new();
+    let t1 = page_new(&store, &input, Take::Units(10), Unit::Lines, &mut page1).unwrap();
+
+    let mut resumed = Vec::new();
+    let t2 = page_resume(&store, t1.cursor.as_ref().unwrap(), Take::Units(5), Unit::Lines, 3, &mut resumed)
+        .unwrap();
+    // lines 8,9,10 reprinted, then 11..=15 delivered
+    let expected: Vec<u8> = (8..=15).map(|i| format!("line {i}\n")).collect::<String>().into_bytes();
+    assert_eq!(resumed, expected);
+    assert_eq!((t2.page, t2.shown, t2.total), (2, 15, 20), "overlap must not count as progress");
 }
 
 #[test]
