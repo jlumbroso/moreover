@@ -71,6 +71,28 @@ Sources: [Command Line Applications in Rust — Packaging](https://rust-cli.gith
 [Homebrew: Acceptable Formulae](https://docs.brew.sh/Acceptable-Formulae) ·
 [Ivan Carvalho, Homebrew + one-line installers for a Rust CLI](https://ivaniscoding.github.io/posts/rustpackaging2/)
 
+## DOC: the release checklist (from Jérémie's cargo-install reference, 2026-09-22)
+
+He supplied a cargo packaging/publishing reference in conversation; the
+part that becomes house procedure is the **validation sequence before
+every publish** — adopted as-is because tonight already demonstrated its
+value (the crate's `include` globs were gitignore-style and unanchored;
+`LICENSE` matched a skill directory's license file; `cargo package
+--list` is precisely the check that catches that class before upload):
+
+```bash
+cargo test               # the gate, as always
+cargo package --list     # exactly what ships — read it, every time
+cargo publish --dry-run  # packaged version must compile on its own
+cargo publish            # versions are immutable; bump, never reuse
+```
+
+Standing facts confirmed by the reference, recorded so nobody re-derives
+them: the binary name follows the package name (`moreover` = `moreover`,
+no `[[bin]]` needed); `cargo install --git <repo>` and `--path .` work
+without crates.io (the README's current install line uses `--path .`
+honestly, until 0.1.0 lands on the registry).
+
 ## Questions
 
 ### QST-DIST-LADDER: Which channels, in which order?
