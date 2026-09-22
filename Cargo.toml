@@ -8,5 +8,8 @@ repository = "https://github.com/jlumbroso/moreover"
 readme = "README.md"
 keywords = ["pager", "llm", "cli", "pagination", "cursor"]
 categories = ["command-line-utilities"]
+# The crate ships the tool; the full deliberation record (docs/adr/) lives
+# in the repository, which is the project's front door.
+include = ["/src/**", "/tests/**", "/Cargo.toml", "/README.md", "/LICENSE"]
 
 [dependencies]
