@@ -363,7 +363,7 @@ surface-level optimization without genuine representational intent."
 ---
 
 ### QST-SUBCOMMAND-GRAMMAR: Do the desk verbs become subcommands?
-- Status: unanswered — the one naming verdict that is architecture: his glance rules it
+- Status: answered
 - Why asking: `moreover ls|stat|drop|gc|contract` versus `--ls`-style flags decides the CLI's whole shape, and the window is now-or-never — every member is unshipped except `--agent` (hours old), so the move is free today and a breaking change forever after.
 - Need: pick a letter (or override — any shape answers)
 
@@ -387,8 +387,8 @@ invocation shape, no subcommand tree — a legitimate small-tool
 aesthetic), that is **B**, and `--agent` still renames to `--contract` as
 a flag (that verdict stands either way).
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Yep, Option A it is, Mint outdid themselves once more. And I think `moreover contract` is a sharp decision.
 
 ---
 
