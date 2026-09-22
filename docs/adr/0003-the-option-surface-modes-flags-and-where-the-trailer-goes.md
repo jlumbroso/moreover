@@ -3,7 +3,7 @@
 # ADR-0003: The option surface — modes, flags, and where the trailer goes
 
 - **Date**: 2026-09-22
-- **Iteration**: 3
+- **Iteration**: 4
 - **Status**: Draft
 - **Deciders**: Jérémie Lumbroso; Ribbon 5
 
@@ -64,7 +64,7 @@ Every option belongs to exactly one kind; a flag that fits none is a smell:
 | **Paging** | how much, in what unit | `-N`/`-n`/`--lines`, `--bytes`, `--all` | `--tokens` (ADR-0002 follow-up), `--overlap N` |
 | **Resumption** | which stream, from where | `-c`/`--cursor` | `--peek`, `--stat CURSOR`, `--drop CURSOR`, `-c last`, file arguments (`moreover FILE`) |
 | **Trailer** | the metadata surface | `--schema`, `--schema-show`, `--schema-template` | `--trailer DEST` (QST below), `--json` |
-| **State** | where state lives, its lifecycle | `--state-dir` (+ env) | `--ls`, `--gc [DAYS]` |
+| **State** | where state lives, its lifecycle | `--state-dir` (+ env) | `--ls`, `--gc [DAYS]`, scope filter (see Iteration 4) |
 | **Introspection** | the tool describing itself to its reader | `--help`, `--version`, `--schema-show` | machine-readable self-description (QST below) |
 | **Reader affordance** | rendering for the reader's native units | — | `--human` (ADR-0002 Decision §3) |
 
@@ -275,7 +275,7 @@ Yes, the precedence in Option A is just right — it feels intuitive.
 ---
 
 ### QST-THIRDX-FRAMING: How much ThirdX may this public repo say out loud?
-- Status: unanswered
+- Status: answered — via conversation 2026-09-22, recorded by Ribbon 5
 - Why asking: the commissioned review found there is currently no public ThirdX writing — this repo may be the framework's first public mouthpiece, which is a publication decision only its author can make.
 - Need: pick a letter (or override — any shape answers)
 
@@ -298,8 +298,18 @@ launch tool that announces the ecosystem") is yours to weigh against it.
 *If wrong*: if you want moreover to BE the first public statement, that
 is **B** — deliberate, with the framing paragraph you choose.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso, 2026-09-22, via conversation)
+Essentially A, with a tone amendment. The tool's scope is narrow: say
+little about ThirdX — cite the relevant principles where they governed a
+choice, no more. Drop the defensive posture on prior art: assert lineage
+plainly ("Builds on …") instead of conceding at length. And
+para-narrative material — e.g. that this is his first project built in
+public — does not belong in the README: "the README is to learn about
+the project"; genesis belongs to blog posts later. He proposes
+recruiting a gpt-6-astra seat to hold public-facing language quality,
+applying his anti-slop criterion ("artificially coherent, structurally
+fluent language that is semantically hollow, produced by surface-level
+optimization without genuine representational intent").
 
 ---
 
@@ -314,9 +324,12 @@ is **B** — deliberate, with the framing paragraph you choose.
 
 ## Action Items
 
-- [ ] Answer the four QSTs - Owner: Jérémie
+- [x] Answer the four QSTs - Owner: Jérémie — all answered by 2026-09-22 (ENV-OVERRIDE parked deferred at his request)
 - [x] Fold in the ThirdX-relevance and petname-doctrine reviews (commissioned 2026-09-22) - Owner: Ribbon 5 — folded at Iteration 2; cursor-id changes implemented same day (`3e18acc`)
-- [ ] Implement the accepted cut with tests per the gate - Owner: Ribbon 5
+- [ ] Route this ADR to Mint 5 (lumbroso-hq) for naming review: flag names overall; `--json` reads as input-conversion, not a trailer schema; how to present pipe-compatible vs. standalone flags; the scope-filter's name - Owner: Ribbon 5 (brief), Mint 5 (review)
+- [ ] Rewrite README per QST-THIRDX-FRAMING's tone ruling (assertive "Builds on…", no para-narrative) - Owner: Ribbon 5
+- [ ] Draft the gpt-6-astra public-language seat's founding brief; he recruits - Owner: Ribbon 5 (draft), Jérémie (recruit)
+- [ ] Implement the accepted cut (post-Mint naming review) with tests per the gate - Owner: Ribbon 5
 
 ## Iterations
 
@@ -337,6 +350,12 @@ is **B** — deliberate, with the framing paragraph you choose.
 - Changes: experiment staked with its two consequences (trailer doctrine holds for both reader kinds; `-c last` earns its error class); `--agent` mode is a go — his answer notes ThirdX has no formalized self-description convention yet and points at the `llms.txt` concept as kin, so the format design pass is on Ribbon 5; env-override deferred question opened.
 - Process note: this iteration also set a crew rule after a real collision (Ribbon 5 edited this file during his answering pass): when the human is mid-edit, his changes get safe-committed first as human feedback, then the seat's — the record reflects who did what.
 - Outcome: status unchanged (`Draft`); QST-CANDIDATE-CUT and QST-THIRDX-FRAMING await answers; QST-ENV-OVERRIDE parked.
+
+### Iteration 4 (2026-09-22)
+- Trigger: his last two answers. QST-CANDIDATE-CUT: A (reader-first cut) accepted — *conditioned on a naming review by Mint 5* before implementation, with three specific concerns: `--json` misleads (reads as converting the input, not selecting a trailer schema); flags must be presented by pipe-compatibility (usable mid-pipe vs. standalone); and `--ls` in a multi-agent machine shows every concurrent reader's cursors — some optional scope filter is wanted (an env var is plausible-but-unloved: "setting them is still a crapshoot"; the shell PID is ruled out by this ADR's own two-PID experiment). QST-THIRDX-FRAMING: A with the tone amendment (assertive "Builds on…", cite only governing principles, no para-narrative in the README).
+- Contributors: Jérémie (answers, incl. the --ls concurrency catch); Ribbon 5 (record, routing, follow-through actions).
+- Changes: scope filter joins the State candidates unnamed (its name is Mint-review material); action items rewritten into the follow-through set (Mint routing, README rewrite, astra-seat founding brief); ANS slots closed.
+- Outcome: status unchanged (`Draft` — Accepted once the Mint naming review folds in); implementation of the cut queues behind that review.
 
 ---
 
