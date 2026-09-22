@@ -306,10 +306,10 @@ plainly ("Builds on …") instead of conceding at length. And
 para-narrative material — e.g. that this is his first project built in
 public — does not belong in the README: "the README is to learn about
 the project"; genesis belongs to blog posts later. He proposes
-recruiting a gpt-6-astra seat to hold public-facing language quality,
-applying his anti-slop criterion ("artificially coherent, structurally
-fluent language that is semantically hollow, produced by surface-level
-optimization without genuine representational intent").
+recruiting a gpt-6-astra seat to hold public-facing language quality
+against **blathm** — his term, by his definition: "artificially coherent,
+structurally fluent language that is semantically hollow, produced by
+surface-level optimization without genuine representational intent."
 
 ---
 
