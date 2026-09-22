@@ -3,8 +3,8 @@
 # ADR-0003: The option surface — modes, flags, and where the trailer goes
 
 - **Date**: 2026-09-22
-- **Iteration**: 5
-- **Status**: Draft
+- **Iteration**: 6
+- **Status**: Accepted
 - **Deciders**: Jérémie Lumbroso; Ribbon 5
 
 **TL;DR**: The trailer's destination becomes an option (stderr stays the
@@ -441,6 +441,12 @@ Yep, Option A it is, Mint outdid themselves once more. And I think `moreover con
 - Contributors: Mint 5 (all verdicts); Ribbon 5 (fold-in, QST-SUBCOMMAND-GRAMMAR, this record).
 - Changes: Naming-verdicts subsection added; taxonomy table updated (shipped column, "rendering" kind, subcommand-form candidates); `--json` killed to `--schema json`; the desk scope mechanism recorded (cwd default, `MOREOVER_DESK` sharpener, `--everywhere`); QST-SUBCOMMAND-GRAMMAR opened for his glance — the sole verdict that is architecture; `--agent` → `contract` queued behind it. Post-v0.1 follow-up noted: `contract` may absorb `--schema-show`/`--schema-template`.
 - Outcome: `Draft`; one QST open (the glance); everything else foldable without him.
+
+### Iteration 6 (2026-09-22, overnight)
+- Trigger: his glance landed same night: QST-SUBCOMMAND-GRAMMAR answered **A** ("Mint outdid themselves once more"; `moreover contract` called "a sharp decision").
+- Contributors: Jérémie (the glance); Ribbon 5 (implementation, record).
+- Changes: the two-world grammar shipped — `moreover contract` is the first desk subcommand (`--agent` removed, hours old, pre-announcement); all five desk verbs reserved from day one so a file named `ls` can never silently page (the error teaches `./ls`); the unknown-cursor error now points at `moreover contract`. 24 tests green.
+- Outcome: `Draft → Accepted`. Open remainder: QST-ENV-OVERRIDE stays deferred by design; the unshipped desk verbs (`ls`, `stat`, `drop`, `gc`) and `--peek`/`--tokens`/`--human`/`--schema json`/`-c last` remain candidates awaiting the usage evidence their glosses name.
 
 ---
 
