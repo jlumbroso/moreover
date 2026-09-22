@@ -3,7 +3,7 @@
 # ADR-0003: The option surface — modes, flags, and where the trailer goes
 
 - **Date**: 2026-09-22
-- **Iteration**: 4
+- **Iteration**: 5
 - **Status**: Draft
 - **Deciders**: Jérémie Lumbroso; Ribbon 5
 
@@ -59,14 +59,19 @@ its routing becomes optional. Defaults never change silently.
 Proposed as the standing shape of `moreover --help`, present and future.
 Every option belongs to exactly one kind; a flag that fits none is a smell:
 
-| Kind | What it governs | v0 members | Candidate members |
+| Kind | What it governs | Shipped members | Candidate members |
 |---|---|---|---|
-| **Paging** | how much, in what unit | `-N`/`-n`/`--lines`, `--bytes`, `--all` | `--tokens` (ADR-0002 follow-up), `--overlap N` |
-| **Resumption** | which stream, from where | `-c`/`--cursor` | `--peek`, `--stat CURSOR`, `--drop CURSOR`, `-c last`, file arguments (`moreover FILE`) |
-| **Trailer** | the metadata surface | `--schema`, `--schema-show`, `--schema-template` | `--trailer DEST` (QST below), `--json` |
-| **State** | where state lives, its lifecycle | `--state-dir` (+ env) | `--ls`, `--gc [DAYS]`, scope filter (see Iteration 4) |
-| **Introspection** | the tool describing itself to its reader | `--help`, `--version`, `--schema-show` | machine-readable self-description (QST below) |
-| **Reader affordance** | rendering for the reader's native units | — | `--human` (ADR-0002 Decision §3) |
+| **Paging** | how much, in what unit | `-N`/`-n`/`--lines`, `--bytes`, `--all`, `--overlap N` | `--tokens` (ADR-0002 follow-up), `--peek` (a flag: it modifies paging) |
+| **Resumption** | which stream, from where | `-c`/`--cursor`, file arguments (`moreover FILE`) | `moreover stat CURSOR`, `moreover drop CURSOR` (desk subcommands, pending glance), `-c last` |
+| **Trailer** | the metadata surface | `--trailer DEST`, `--schema`, `--schema-show`, `--schema-template` | `--schema json` (a schema value — never a bare format flag) |
+| **State** | where state lives, its lifecycle | `--state-dir` (+ env) | `moreover ls [--everywhere]`, `moreover gc [DAYS]` (desk subcommands), `MOREOVER_DESK` (opt-in scope tag) |
+| **Introspection** | the tool describing itself to its reader | `--help`, `--version`, `--schema-show`, `--agent` (→ `moreover contract`, pending glance) | — |
+| **Rendering** | output in the reader's native units | — | `--human` (ADR-0002 Decision §3) |
+
+*(Table updated at Iteration 5: "Reader affordance" struck to "Rendering"
+— the whole tool is a reader affordance, so the old kind-name claimed the
+genus for one species; and the standalone verbs moved to subcommand form
+per the naming review, pending his glance on the grammar — QST below.)*
 
 Candidate members glossed (the brainstorm, so answering can prune):
 
@@ -116,6 +121,50 @@ carrier. Two consequences staked:
 2. `-c last` (above) earns its place: when the printed cursor is the only
    carrier and the carrier is lossy, the store must be able to answer
    "where was I?"
+
+### Naming verdicts (Iteration 5 — Mint 5's review, folded)
+
+Mint 5 (Lumbroso HQ) reviewed the full surface 2026-09-22 (hub inbox
+`2026-09-22-0605`, written publication-clean for this fold-in). The
+verdicts, distilled — they supersede the older glosses above where they
+conflict:
+
+1. **Standalone verbs become subcommands** (`moreover ls | stat | drop |
+   gc | contract`) — pipe-compatibility becomes *grammatical* rather than
+   documentary: bare invocation + flags is the pipe world; subcommands
+   are the desk world; the syntax refuses wrong compositions. As a
+   subcommand, `ls` stops violating design commitment 1 (the Unix
+   desk-verb register carries fifty years of provenance). Now-or-never:
+   every member was unshipped at verdict time, so the move is free today
+   and a breaking change forever after. *Pending his glance — this one is
+   architecture as much as naming (QST-SUBCOMMAND-GRAMMAR below).*
+2. **`--json` is killed** → `--schema json`. A bare format-noun flag
+   reads as an input transform (his smell was the correct reading of the
+   wrong name). Standing rule: **no bare format flags, ever** — formats
+   are schema vocabulary, the same one-flag-one-vocabulary law his
+   QST-TRAILER-DEST answer ratified.
+3. **`--agent` renames to `contract`** (flag now, subcommand under
+   verdict 1): the mode prints the tool's *contract*; "--agent" named who
+   reads it. Doctrine pair with `--human`, which is **confirmed**: *name
+   the audience only when the audience is the semantics* — for `--human`
+   the audience is the argument; for the contract it wasn't.
+4. **The scope filter is the desk, and cwd is the ambient default**:
+   cursors record their mint-time working directory; `moreover ls` shows
+   this directory's desk (zero setup — the two-PID experiment showed
+   shells die between turns, but the working directory survives);
+   `moreover ls --everywhere` widens to the machine (never `--all`: that
+   word belongs to paging); `MOREOVER_DESK` is an *optional sharpener*
+   for same-directory concurrency, not a required identity — which
+   dissolves the env-crapshoot objection.
+5. Kind-name strike: "reader affordance" → **"rendering"** (applied
+   above). All other flags confirmed; `--schema-show`/`--schema-template`
+   flagged gently as a future muddle — likely absorbed by `moreover
+   contract` post-v0.1, no churn now.
+
+*Falsifiers carried from the review*: his glance rules the subcommand
+grammar; and if first transcripts show same-directory concurrency is
+common, `MOREOVER_DESK` promotes from refinement to recommendation, name
+unchanged.
 
 ### Design commitments (Iteration 2 — from the commissioned reviews)
 
@@ -313,6 +362,36 @@ surface-level optimization without genuine representational intent."
 
 ---
 
+### QST-SUBCOMMAND-GRAMMAR: Do the desk verbs become subcommands?
+- Status: unanswered — the one naming verdict that is architecture: his glance rules it
+- Why asking: `moreover ls|stat|drop|gc|contract` versus `--ls`-style flags decides the CLI's whole shape, and the window is now-or-never — every member is unshipped except `--agent` (hours old), so the move is free today and a breaking change forever after.
+- Need: pick a letter (or override — any shape answers)
+
+Options:
+- **A — the two-world grammar (Mint's ruling)**: bare `moreover` + flags = pipe world (paging, resumption, trailer, rendering); subcommands = desk world (`ls`, `stat`, `drop`, `gc`, `contract`). Pipe-safety becomes syntax: wrong compositions won't parse. The git/cargo shape. `--agent` (shipped today) renames to `moreover contract`.
+- **B — flags all the way down**: keep every mode a flag, carry pipe-compatibility as a documented help-table column. No rename of `--agent`; the cost is permanent documentation duty and `--ls`-style register violations.
+
+**Recommendation**: (by Ribbon 5, Claude Fable 5)
+
+**A — the two-world grammar.** *Rationale*: it converts a rule a reader
+must remember into a sentence a reader cannot missay — the strongest form
+of design commitment 2 (strict syntactic boundary), and it resolves his
+own pipe-compatibility ask (Iteration 4) structurally rather than
+documentarily; the sole shipped casualty is `--agent`, hours old and
+pre-announcement. *Confidence*: 0.85 — because the review's argument is
+the ADR's own commitments applied consistently, and the migration cost is
+one rename today versus a breaking change later; read as an action band
+this is mine to take, but the falsifier below is exactly why it waits for
+you. *If wrong*: if you want moreover to stay a single-grammar tool (one
+invocation shape, no subcommand tree — a legitimate small-tool
+aesthetic), that is **B**, and `--agent` still renames to `--contract` as
+a flag (that verdict stands either way).
+
+**ANS:** (by )
+[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+
+---
+
 ## Consequences
 
 - The taxonomy becomes the standing map: every future flag names its kind
@@ -356,6 +435,12 @@ surface-level optimization without genuine representational intent."
 - Contributors: Jérémie (answers, incl. the --ls concurrency catch); Ribbon 5 (record, routing, follow-through actions).
 - Changes: scope filter joins the State candidates unnamed (its name is Mint-review material); action items rewritten into the follow-through set (Mint routing, README rewrite, astra-seat founding brief); ANS slots closed.
 - Outcome: status unchanged (`Draft` — Accepted once the Mint naming review folds in); implementation of the cut queues behind that review.
+
+### Iteration 5 (2026-09-22, overnight)
+- Trigger: Mint 5's naming review returned same night (hub inbox `2026-09-22-0605`), hours after the v0.1 cut shipped rename-ready (`4a2525d`: `--trailer`, `--overlap`, file mode, `--agent`).
+- Contributors: Mint 5 (all verdicts); Ribbon 5 (fold-in, QST-SUBCOMMAND-GRAMMAR, this record).
+- Changes: Naming-verdicts subsection added; taxonomy table updated (shipped column, "rendering" kind, subcommand-form candidates); `--json` killed to `--schema json`; the desk scope mechanism recorded (cwd default, `MOREOVER_DESK` sharpener, `--everywhere`); QST-SUBCOMMAND-GRAMMAR opened for his glance — the sole verdict that is architecture; `--agent` → `contract` queued behind it. Post-v0.1 follow-up noted: `contract` may absorb `--schema-show`/`--schema-template`.
+- Outcome: `Draft`; one QST open (the glance); everything else foldable without him.
 
 ---
 
