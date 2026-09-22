@@ -109,7 +109,37 @@ fn contract_subcommand_carries_the_promises() {
     // The lines a model reader most needs, verbatim commitments:
     assert!(text.contains("cursor: {cursor}"), "trailer template missing");
     assert!(text.contains("never invent or extrapolate one"), "don't-invent rule missing");
-    assert!(text.contains("resuming the same cursor twice yields the same page"));
+    assert!(text.contains("same page size, unit, and overlap"), "replay conditions missing");
+    assert!(text.contains("repeats the same content"), "content replay commitment missing");
+    assert!(text.contains("The next cursor ID may differ"), "cursor identity caveat missing");
+}
+
+#[test]
+fn resume_uses_this_invocations_size_unit_and_overlap() {
+    // Regression: the contract promised the same page for any replay,
+    // but a cursor stores a byte position, not the caller's paging options.
+    // Resume from inside a line to make that distinction observable.
+    let state = scratch_dir("replay-options");
+    let first = run(&state, &["--bytes", "2"], Some(b"alpha\nbeta\ngamma\ndelta\n"));
+    assert!(first.status.success());
+    assert_eq!(first.stdout, b"al");
+    let trailer = String::from_utf8(first.stderr).unwrap();
+    let cursor = trailer.split("cursor: ").nth(1).unwrap().trim_end_matches(">\n");
+
+    let line = run(&state, &["-c", cursor, "-1"], None);
+    let replay = run(&state, &["-c", cursor, "-1"], None);
+    let bytes = run(&state, &["-c", cursor, "--bytes", "3"], None);
+    let overlap = run(&state, &["-c", cursor, "--bytes", "3", "--overlap", "2"], None);
+    let defaults = run(&state, &["-c", cursor], None);
+
+    for output in [&line, &replay, &bytes, &overlap, &defaults] {
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
+    assert_eq!(line.stdout, b"pha\n");
+    assert_eq!(replay.stdout, line.stdout, "same options must repeat content");
+    assert_eq!(bytes.stdout, b"pha");
+    assert_eq!(overlap.stdout, b"alpha", "byte overlap must prepend saved bytes");
+    assert_eq!(defaults.stdout, b"pha\nbeta\ngamma\ndelta\n", "resume defaults to lines");
 }
 
 #[test]

@@ -64,42 +64,72 @@ Introspection:
 const DESK_VERBS: [&str; 5] = ["contract", "ls", "stat", "drop", "gc"];
 
 /// The machine-facing contract (`moreover contract`, ADR-0003
-/// QST-SELF-DESCRIPTION + QST-SUBCOMMAND-GRAMMAR). DRAFT text: the
-/// mechanism is stable; the words are under review by the crew's
-/// public-language seat.
+/// QST-SELF-DESCRIPTION + QST-SUBCOMMAND-GRAMMAR). Describes the current
+/// implementation; the trailer templates remain the frozen v0 grammar.
 const CONTRACT: &str = "\
-moreover: agent contract (v0)
+moreover: contract (v0)
 
-what: a non-interactive pager. It pages a stream now and lets you resume
-it in a LATER process invocation via a cursor. The trailer line teaches
-you the rest at the exact moment there is more.
+purpose:
+  Save input from a pipe or file, print a page, and resume the saved input
+  in a later invocation using a printed cursor.
+  Input must finish before the first page appears: the whole input is
+  read into memory and saved on disk. Unbounded input never reaches a page.
+
+invocations:
+  stdin:    <producer> | moreover -10
+  file:     moreover FILE -10
+  resume:   moreover -c CURSOR --all
+  contract: moreover contract
+  Resume reads saved input, ignores stdin, and rejects an input file.
+  The contract takes no arguments and does not read stdin.
+  ls, stat, drop, and gc are reserved subcommands, not yet available.
+  Prefix a filename matching a subcommand with ./ (for example, ./ls).
+
+paging:
+  Every invocation defaults to 10 lines, including resume.
+  -N, -n N, or --lines N selects lines; --bytes N selects bytes.
+  --all prints the remainder with line counts; use it without a page size.
+  Byte pages can split lines and encoded characters. Changing units on
+  resume keeps the saved byte position, which may be inside a line.
+  --overlap N repeats up to N preceding units before a resumed page,
+  using this invocation's unit. It has no effect on the first page.
 
 trailer (schema v0; a compatibility promise):
   paged form:  <moreover: page {page}, {shown}/{total} {unit}, cursor: {cursor}>
   --all form:  <moreover: {shown}/{total} {unit}, cursor: {cursor}>
-  cursor: null   means the stream is exhausted.
-  {shown} is cumulative through this page; {total} may be ? if unknown.
-  destination: stderr by default; --trailer stderr|stdout|none|fd:N|file:PATH
+  {shown} counts units from the start of saved input through this page's
+  end; {total} counts the whole saved input. Both use this invocation's
+  unit (lines or bytes). Overlap is not added again. Totals are numeric.
+  {page} starts at 1 and advances through successive cursors.
+  cursor: null means no input remains after this page; do not resume null.
+  Otherwise, use the printed cursor to start the next page.
+  --schema v0 selects the only current schema; --schema-show prints it.
+  --schema-template T replaces the template using the placeholders above.
+
+output:
+  Content goes to stdout. The trailer goes to stderr by default.
+  --trailer DEST accepts stderr, stdout, none, fd:N, or file:PATH.
+  stdout places the trailer after the content; none suppresses it;
+  fd:N writes to an inherited descriptor; file:PATH appends to a file.
 
 cursors:
-  - a cursor names (stream, position); page size is never part of it
-  - only reuse a cursor moreover printed — never invent or extrapolate one
-  - read case-insensitively (o folds to 0; i and l fold to 1)
-  - immutable: resuming the same cursor twice yields the same page
-  - scope: this machine's state dir only; cursors do not travel
+  Only reuse a cursor moreover printed — never invent or extrapolate one.
+  A cursor fixes a position in saved input, not page size, unit, or overlap.
+  Resuming the same cursor with the same page size, unit, and overlap
+  repeats the same content. The next cursor ID may differ.
+  Resumption leaves the original cursor unchanged.
+  IDs are case-insensitive; o folds to 0, and i and l fold to 1.
 
-invocations (two worlds; the grammar keeps them apart):
-  pipe world:        <producer> | moreover -10     (flags page streams)
-  file mode:         moreover FILE -10             (./NAME if the file is named like a desk verb)
-  resume (no input): moreover -c CURSOR --all
-  desk world:        moreover contract              (subcommands; ls, stat, drop, gc reserved)
-  --overlap N on resume reprints the last N units first (re-anchoring;
-  the trailer's numbers do not count the reprint)
+state (first applicable entry wins):
+  --state-dir PATH > $MOREOVER_STATE_DIR > $XDG_STATE_HOME/moreover
+  > ~/.local/state/moreover
+  A cursor requires its record and saved input in the selected directory.
+  Keep that state to resume. The original file or producer is not reread.
+  Reaching the end does not delete saved state.
 
-units: lines (default) | bytes (--bytes N)
-state: $MOREOVER_STATE_DIR > $XDG_STATE_HOME/moreover > ~/.local/state/moreover
-exit codes: 0 ok · 1 stream/cursor error (message on stderr, written to
-you, the reader) · 2 usage error
+exit codes:
+  0 success; 1 reported I/O, state, or cursor error; 2 usage or schema error.
+  Error messages go to stderr.
 ";
 
 #[derive(Debug, Clone, PartialEq)]
