@@ -248,7 +248,7 @@ Sounds good. But first, I'd like you to route this ADR to **Mint 5 of Lumbroso H
 ---
 
 ### QST-ENV-OVERRIDE: Should an env var later be allowed to override the trailer default?
-- Status: deferred — opened at his request in the QST-TRAILER-DEST answer; revisit if adoption brings harness operators who can't touch model prompts
+- Status: answered
 - Why asking: `--trailer`'s answer chose flag-only routing for legibility to the calling model; a `MOREOVER_TRAILER` env default would serve harness operators but reintroduces invisible state steering the most-seen surface.
 - Need: yes/no + precedence rule, when revisited
 
@@ -269,8 +269,8 @@ occurred. *If wrong*: if in practice env-set defaults produce
 "why did my trailer vanish" confusion in model transcripts, that is
 **B** — visible-invocation absolutism.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Yes, the precedence in Option A is just right — it feels intuitive.
 
 ---
 
