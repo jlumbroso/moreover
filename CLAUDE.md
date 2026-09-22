@@ -88,15 +88,20 @@ Tests should:
 **RUN THIS PROJECT'S VERIFICATION GATE BEFORE EVERY COMMIT**
 
 Before serving any change:
-1. Run the project's verification gate: [name it here at instantiation — test suite, build, linter, or a combination; e.g. `npm test`, `uv run pytest`, `hugo && bin/check`]
+1. Run the project's verification gate: `cargo test`
 2. Fix any failures before committing
 3. Never serve changes with a failing gate
 
-**Why**: [State what this project's gate actually catches — real classes of bug, real numbers if you have them. A directive that names a real gate gets followed; an unfollowable one teaches every seat that directives are decorative, and that lesson generalizes.]
+**Why**: `tests/sketch.rs` is the founding sketch as an executable
+acceptance suite (7 tests) plus module unit tests (5): it catches
+trailer-grammar drift — a compatibility promise to every model that reads
+the trailer — paging arithmetic, cursor roundtrip/idempotency/case-folding,
+and spool dedup. The build itself is part of the gate (`cargo test`
+compiles everything).
 
 **Process**:
 ```bash
-<your gate command>            # Must be green before commit
+cargo test                     # Must be green before commit
 git add <explicit paths>       # never -A: stage by path, commit by pathspec — see CONVENTIONS.md, shared-worktree awareness
 git commit -m "..." -- <paths>
 ```
