@@ -3,7 +3,7 @@
 # ADR-0003: The option surface — modes, flags, and where the trailer goes
 
 - **Date**: 2026-09-22
-- **Iteration**: 2
+- **Iteration**: 3
 - **Status**: Draft
 - **Deciders**: Jérémie Lumbroso; Ribbon 5
 
@@ -62,7 +62,7 @@ Every option belongs to exactly one kind; a flag that fits none is a smell:
 | Kind | What it governs | v0 members | Candidate members |
 |---|---|---|---|
 | **Paging** | how much, in what unit | `-N`/`-n`/`--lines`, `--bytes`, `--all` | `--tokens` (ADR-0002 follow-up), `--overlap N` |
-| **Resumption** | which stream, from where | `-c`/`--cursor` | `--peek`, `--stat CURSOR`, `--drop CURSOR`, file arguments (`moreover FILE`) |
+| **Resumption** | which stream, from where | `-c`/`--cursor` | `--peek`, `--stat CURSOR`, `--drop CURSOR`, `-c last`, file arguments (`moreover FILE`) |
 | **Trailer** | the metadata surface | `--schema`, `--schema-show`, `--schema-template` | `--trailer DEST` (QST below), `--json` |
 | **State** | where state lives, its lifecycle | `--state-dir` (+ env) | `--ls`, `--gc [DAYS]` |
 | **Introspection** | the tool describing itself to its reader | `--help`, `--version`, `--schema-show` | machine-readable self-description (QST below) |
@@ -90,6 +90,32 @@ Candidate members glossed (the brainstorm, so answering can prune):
   consuming anything: which stream, position, remaining. The
   map-before-territory move: give the reader the shape before the
   content.
+- **`-c last`** *(added Iteration 3, from the two-PID experiment below)*
+  — resume the most recently minted cursor: the state dir remembers what
+  the shell forgets. Error class it prevents: cursor lost between
+  invocations through no fault of the reader (scrolled away, compacted,
+  or — as the experiment shows — unpassable through shell state at all).
+  `last` is reserved vocabulary, cheap to keep out of the base-32 space
+  (minted ids always mix letters and digits; `last` is all letters).
+
+### DOC: the two-PID experiment (2026-09-22)
+
+Jérémie ran `echo $$` in two consecutive harness bash turns: PIDs 29756,
+then 30352 — **each command gets a fresh shell process**. So in the very
+medium this project is built in, `CUR=$(… | moreover -10 …)` followed by
+`moreover -c $CUR` next turn is structurally impossible: no shell state
+survives between a reader's invocations, and the transcript is the only
+carrier. Two consequences staked:
+
+1. The trailer-line doctrine holds for *both* reader kinds here — human
+   at the harness prompt and model alike are "readers without hands"
+   whose only persistent channel is the printed surface. (Empirically:
+   this harness does deliver stderr to the model's context, so the
+   stderr default survives it; the destination flag remains for
+   harnesses that don't.)
+2. `-c last` (above) earns its place: when the printed cursor is the only
+   carrier and the carrier is lossy, the store must be able to answer
+   "where was I?"
 
 ### Design commitments (Iteration 2 — from the commissioned reviews)
 
@@ -221,6 +247,33 @@ Sounds good. But first, I'd like you to route this ADR to **Mint 5 of Lumbroso H
 
 ---
 
+### QST-ENV-OVERRIDE: Should an env var later be allowed to override the trailer default?
+- Status: deferred — opened at his request in the QST-TRAILER-DEST answer; revisit if adoption brings harness operators who can't touch model prompts
+- Why asking: `--trailer`'s answer chose flag-only routing for legibility to the calling model; a `MOREOVER_TRAILER` env default would serve harness operators but reintroduces invisible state steering the most-seen surface.
+- Need: yes/no + precedence rule, when revisited
+
+Options:
+- **A — env as default-setter only**: precedence flag > env > built-in stderr; the env can move the default, never defeat an explicit flag.
+- **B — no env, ever**: configuration file or wrapper scripts are the operator's tools; the trailer's routing stays visible in the invocation.
+
+**Recommendation**: (by Ribbon 5, Claude Fable 5)
+
+**A — env as default-setter only**, *when* the need materializes.
+*Rationale*: it is the one precedence order that keeps the invocation
+legible (an explicit flag always tells the truth) while giving operators
+a knob; his answer already sketched exactly this ("easy to pick a
+default, and then for that default to be overridable in settings").
+*Confidence*: 0.7 — because the shape is standard and matches his
+sketch, but the trigger condition (real operator demand) hasn't
+occurred. *If wrong*: if in practice env-set defaults produce
+"why did my trailer vanish" confusion in model transcripts, that is
+**B** — visible-invocation absolutism.
+
+**ANS:** (by )
+[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+
+---
+
 ### QST-THIRDX-FRAMING: How much ThirdX may this public repo say out loud?
 - Status: unanswered
 - Why asking: the commissioned review found there is currently no public ThirdX writing — this repo may be the framework's first public mouthpiece, which is a publication decision only its author can make.
@@ -277,6 +330,13 @@ is **B** — deliberate, with the framing paragraph you choose.
 - Contributors: Ribbon 5 (fold-in); the estate's prior work (via the reviews).
 - Changes: Design-commitments subsection added (self-describing names; strict-syntax/tolerant-semantics; reader-addressed errors; error-class discipline; durable-over-compensatory); `--stat` joined the candidates (map-before-territory); public prior art cited (AX, MX, Anthropic guidance, BAML); cursor-id doctrine implemented in code; QST-THIRDX-FRAMING opened.
 - Outcome: status unchanged (`Draft`); four QSTs now await answers.
+
+### Iteration 3 (2026-09-22)
+- Trigger: two events — his answers to QST-TRAILER-DEST and QST-SELF-DESCRIPTION landed (both A; committed by him as `2b54541`), and his two-PID harness experiment (`echo $$` twice: fresh shell per turn) demonstrated the tool's founding condition inside our own working medium.
+- Contributors: Jérémie (answers; the experiment); Ribbon 5 (DOC: two-PID experiment; `-c last` candidate; QST-ENV-OVERRIDE opened deferred per his answer; process note below).
+- Changes: experiment staked with its two consequences (trailer doctrine holds for both reader kinds; `-c last` earns its error class); `--agent` mode is a go — his answer notes ThirdX has no formalized self-description convention yet and points at the `llms.txt` concept as kin, so the format design pass is on Ribbon 5; env-override deferred question opened.
+- Process note: this iteration also set a crew rule after a real collision (Ribbon 5 edited this file during his answering pass): when the human is mid-edit, his changes get safe-committed first as human feedback, then the seat's — the record reflects who did what.
+- Outcome: status unchanged (`Draft`); QST-CANDIDATE-CUT and QST-THIRDX-FRAMING await answers; QST-ENV-OVERRIDE parked.
 
 ---
 
