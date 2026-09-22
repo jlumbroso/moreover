@@ -48,16 +48,26 @@ Trailer (the v0 grammar is a compatibility promise):
   --schema-show         print the active schema's templates and exit
   --schema-template T   render the trailer with template T instead
 
+Desk (subcommands — the standalone world; they never appear in pipes):
+  moreover contract     print the machine-facing contract
+  (ls, stat, drop, gc: reserved for the desk, not yet available)
+
 Introspection:
-  --agent               print the machine-facing contract and exit
   --help                this text
   --version             version
 ";
 
-/// The machine-facing contract (`--agent`, ADR-0003 QST-SELF-DESCRIPTION).
-/// DRAFT text: the mechanism is stable; the words are under review by the
-/// crew's public-language seat.
-const AGENT_CONTRACT: &str = "\
+/// The desk world (ADR-0003 QST-SUBCOMMAND-GRAMMAR, accepted): bare
+/// `moreover` + flags pages; subcommands do desk operations. All five
+/// verbs are reserved from day one so a file named `ls` can never
+/// silently page — `./ls` pages it.
+const DESK_VERBS: [&str; 5] = ["contract", "ls", "stat", "drop", "gc"];
+
+/// The machine-facing contract (`moreover contract`, ADR-0003
+/// QST-SELF-DESCRIPTION + QST-SUBCOMMAND-GRAMMAR). DRAFT text: the
+/// mechanism is stable; the words are under review by the crew's
+/// public-language seat.
+const CONTRACT: &str = "\
 moreover: agent contract (v0)
 
 what: a non-interactive pager. It pages a stream now and lets you resume
@@ -78,10 +88,11 @@ cursors:
   - immutable: resuming the same cursor twice yields the same page
   - scope: this machine's state dir only; cursors do not travel
 
-invocations:
-  pipe mode:        <producer> | moreover -10
-  file mode:        moreover FILE -10
+invocations (two worlds; the grammar keeps them apart):
+  pipe world:        <producer> | moreover -10     (flags page streams)
+  file mode:         moreover FILE -10             (./NAME if the file is named like a desk verb)
   resume (no input): moreover -c CURSOR --all
+  desk world:        moreover contract              (subcommands; ls, stat, drop, gc reserved)
   --overlap N on resume reprints the last N units first (re-anchoring;
   the trailer's numbers do not count the reprint)
 
@@ -136,10 +147,25 @@ enum Parsed {
     Run(Box<Args>),
     Help,
     Version,
-    Agent,
+    Contract,
 }
 
 fn parse_args(argv: &[String]) -> Result<Parsed, String> {
+    // Desk world: a subcommand must be the first token (git/cargo shape).
+    if let Some(first) = argv.first() {
+        if first == "contract" {
+            if argv.len() > 1 {
+                return Err("moreover contract takes no arguments".to_string());
+            }
+            return Ok(Parsed::Contract);
+        }
+        if DESK_VERBS.contains(&first.as_str()) {
+            return Err(format!(
+                "moreover {first} is a reserved desk subcommand (ADR-0003), not yet available; \
+                 to page a file named '{first}', write ./{first}"
+            ));
+        }
+    }
     let mut args = Args {
         take: Take::Units(10),
         unit: Unit::Lines,
@@ -161,7 +187,6 @@ fn parse_args(argv: &[String]) -> Result<Parsed, String> {
         match a.as_str() {
             "--help" => return Ok(Parsed::Help),
             "--version" => return Ok(Parsed::Version),
-            "--agent" => return Ok(Parsed::Agent),
             "--all" => args.take = Take::All,
             "-n" | "--lines" => {
                 let n = want(a)?.parse().map_err(|_| format!("bad count for {a}"))?;
@@ -240,8 +265,8 @@ fn run() -> Result<(), (u8, String)> {
             println!("moreover {}", env!("CARGO_PKG_VERSION"));
             return Ok(());
         }
-        Parsed::Agent => {
-            print!("{AGENT_CONTRACT}");
+        Parsed::Contract => {
+            print!("{CONTRACT}");
             return Ok(());
         }
         Parsed::Run(args) => args,
@@ -267,7 +292,7 @@ fn run() -> Result<(), (u8, String)> {
         Some(id) => page_resume(&store, id, args.take, args.unit, args.overlap, &mut out)
             .map_err(|e| {
                 if e.kind() == io::ErrorKind::NotFound {
-                    (1, format!("unknown cursor '{id}' (state: {}) — a cursor is only valid if moreover printed it", root.display()))
+                    (1, format!("unknown cursor '{id}' (state: {}) — a cursor is only valid if moreover printed it; run `moreover contract` for the rules", root.display()))
                 } else {
                     (1, format!("cannot resume '{id}': {e}"))
                 }

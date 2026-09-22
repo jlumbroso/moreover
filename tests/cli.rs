@@ -99,15 +99,30 @@ fn resume_rejects_an_input_file() {
 }
 
 #[test]
-fn agent_contract_carries_the_promises() {
-    let state = scratch_dir("agent");
-    let out = run(&state, &["--agent"], None);
+fn contract_subcommand_carries_the_promises() {
+    // The two-world grammar (ADR-0003 QST-SUBCOMMAND-GRAMMAR, accepted):
+    // the contract is a desk subcommand, not a flag.
+    let state = scratch_dir("contract");
+    let out = run(&state, &["contract"], None);
     assert!(out.status.success());
     let text = String::from_utf8(out.stdout).unwrap();
-    // The two lines a model reader most needs, verbatim commitments:
+    // The lines a model reader most needs, verbatim commitments:
     assert!(text.contains("cursor: {cursor}"), "trailer template missing");
     assert!(text.contains("never invent or extrapolate one"), "don't-invent rule missing");
     assert!(text.contains("resuming the same cursor twice yields the same page"));
+}
+
+#[test]
+fn desk_verbs_are_reserved_and_teach_the_escape() {
+    // A file named `ls` must never silently page; the error must teach
+    // `./ls` (design commitment 3: errors are written to the reader).
+    let state = scratch_dir("reserved");
+    for verb in ["ls", "stat", "drop", "gc"] {
+        let out = run(&state, &[verb], None);
+        assert_eq!(out.status.code(), Some(2), "{verb} must be reserved");
+        let err = String::from_utf8(out.stderr).unwrap();
+        assert!(err.contains(&format!("./{verb}")), "error must teach the escape: {err}");
+    }
 }
 
 #[test]
