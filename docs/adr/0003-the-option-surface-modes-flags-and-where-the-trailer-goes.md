@@ -138,7 +138,7 @@ reader's context compaction).
 ## Questions
 
 ### QST-TRAILER-DEST: How is the trailer routed, and how is it hidden?
-- Status: unanswered
+- Status: answered
 - Why asking: his direct ask; and the destination interacts with the tool's core promise — a trailer a harness never captures is a trailer that failed its one job.
 - Need: pick a letter (or override — any shape answers)
 
@@ -162,13 +162,13 @@ he wants harness operators steering destination without touching model
 prompts, that is a real need A alone doesn't meet — flips to **C's env
 layered under A**, never to B.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Yes, obviously Option A, it is the only decoupled/scalable option. Additionally to the existing benefits, it makes it easy to pick a default, and then for that default to be overridable in settings. The precedence rules of the other option are a just a prospective nightmare not just to implement but cognitive load on the caller. We should add a deferred question about whether having an env override *in addition* would be a good future option. (If the tool is adopted, this may be a requested feature, but I appreciate your strong argument about legibility to the calling model.)
 
 ---
 
 ### QST-SELF-DESCRIPTION: Does moreover get a machine-facing self-description mode?
-- Status: unanswered
+- Status: answered
 - Why asking: a tool whose primary user is a model should be able to teach that model its own contract in-band — `--help` prose is for humans; the introspection kind in the taxonomy is currently thin (`--schema-show` only).
 - Need: pick a letter (or override — any shape answers)
 
@@ -190,13 +190,13 @@ convention to align with). *If wrong*: if the ThirdX corpus already
 defines a self-description convention, this flips from "design one" to
 "implement theirs" — same letter, borrowed format.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Great idea! Yes, let's do Option A. I don't think we have formalized this mechanism in ThirdX — this reminds me of the `llms.txt` concept for websites.
 
 ---
 
 ### QST-CANDIDATE-CUT: Which candidate members make v0.1?
-- Status: unanswered
+- Status: answered
 - Why asking: the taxonomy legitimizes candidates; it doesn't schedule them. A cut line keeps v0.1 espresso-sized.
 - Need: pick a letter, or strike items freely (any shape answers)
 
@@ -216,8 +216,8 @@ evidence. *Confidence*: 0.65 — because the cut is taste plus one day of
 usage; real transcripts could reorder it overnight. *If wrong*: if his
 own early use runs into cursor clutter before reader pain, flip to **B**.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Sounds good. But first, I'd like you to route this ADR to **Mint 5 of Lumbroso HQ** for review, especially of the flag names. (`--json` alone, for the *template JSON* feels suspiciously thin, I'd assume it's like a way to convert the input into JSON or something.) I also think it needs to be clear which flags can be used while piping data and which are not. The option `--ls` makes me think the failure mode would be for the model to see a ton of cursors of the concurrent models working on the same machine: I was thinking, having an environment variable, maybe with their session UUID, to help filter the cursors displayed; but then we could also use the PID of the shell session? However I just tried `echo $$` in the Claude Code harness, and we found each turn is run in a different shell — so there is no persistence of session, we need a mechanism to filter — it's not mandatory — but an environment variable could be useful here, though I think setting them is still a crapshoot.
 
 ---
 
