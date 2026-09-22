@@ -180,7 +180,7 @@ ladder's binary rung still ships meanwhile, unaffected.
 ## Action Items
 
 - [ ] Answer the three QSTs - Owner: Jérémie
-- [ ] Version 0.1.0: bump, tag, publish to crates.io (queued behind the working tree clearing — Lector's cycle) - Owner: Ribbon 5
+- [x] Version 0.1.0: bump, tag, publish to crates.io - Owner: Ribbon 5 — done 2026-09-22 (`3059693`, tag `v0.1.0`); checklist run in full, package list verified clean
 - [ ] On accepted tooling: `dist init`, first tagged release with binaries - Owner: Ribbon 5
 - [ ] On accepted tap home: create the tap repo, wire cargo-dist's formula push - Owner: Jérémie (repo creation) + Ribbon 5 (wiring)
 
