@@ -27,11 +27,12 @@ Use it for finite output, not an ongoing stream such as `tail -f`.
 ## Install
 
 Requires Rust 1.89 or later; no external Rust dependencies.
-From a checkout of this repository:
 
 ```console
-$ cargo install --path .
+$ cargo install moreover
 ```
+
+To install from a checkout of this repository, use `cargo install --path .`.
 
 ## Reading pages
 
