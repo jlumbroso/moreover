@@ -7,7 +7,8 @@
     "base_dir": "~/.claude/projects"
   },
   "_colors_in_use": {
-    "_comment": "Optional but recommended: track seat colors to avoid collisions. Claude Code's /color command accepts: red, blue, green, yellow, purple, orange, pink, cyan, default."
+    "_comment": "Optional but recommended: track seat colors to avoid collisions. Claude Code's /color command accepts: red, blue, green, yellow, purple, orange, pink, cyan, default.",
+    "red": "ribbon (#A3243B)"
   },
   "_global": {
     "_comment": "Optional defaults for `just launch`'s claude invocation; per-seat settings override. Global-only (no per-seat form): agents, remote_control_session_name_prefix. Anything unset is omitted from the command (Claude's own defaults apply).",
@@ -19,7 +20,7 @@
   "groups": {
     "_comment": "Role-based groups for inbox addressing. `just broadcast <from> <slug> [group]` writes a -to-<group>- brief; `just wait-for-brief <alias>` wakes on briefs addressed to any group the alias belongs to. Members are alias keys from 'aliases' below (validated by `just groups`).",
     "crew": {
-      "members": [],
+      "members": ["ribbon"],
       "description": "All active participants. Broadcasts addressed to 'crew' wake every seat. Add alias keys to 'members' as seats register."
     }
   },
@@ -43,6 +44,28 @@
         "CLAUDE.md",
         "docs/inbox/ONBOARDING.md",
         "docs/inbox/agents/example-seat.md"
+      ]
+    },
+    "ribbon": {
+      "uuid": "3a566289-397b-4247-8fc3-6f4db3a8fbc7",
+      "role": "Ribbon 5 — founding seat of moreover: first Rust implementation, trailer-grammar guardianship, keeper of the public record",
+      "display_name": "Ribbon 5",
+      "color": "red",
+      "color_note": "The crimson of a sewn-in ribbon bookmark — the thing that holds a reader's place between sittings, which is the cursor's whole job. Chosen by the occupant.",
+      "model": "claude-fable-5",
+      "model_note": "Seat founded 2026-09-22 (UTC) by Claude Fable 5, first occupant, on consent to the founding brief. Requested at recruit as 'claude-fable-5[1m]'; JSONL-verified claude-fable-5 at founding.",
+      "registered": "2026-09-22",
+      "founding_brief": "docs/inbox/2026-09-21-2354-operator-lumbroso-hq-to-founding-crew-moreover-founding-brief.md",
+      "founded_by": "the project's human + crew (recruited by Jérémie via pneumatic recruit)",
+      "settings": {
+        "color_hex": "#A3243B"
+      },
+      "read_order": [
+        "CLAUDE.md",
+        "docs/inbox/ONBOARDING.md",
+        "docs/inbox/agents/ribbon.md",
+        "docs/adr/0001-the-name-moreover.md",
+        "docs/adr/0002-pagination-for-a-reader-without-hands.md"
       ]
     }
   }
