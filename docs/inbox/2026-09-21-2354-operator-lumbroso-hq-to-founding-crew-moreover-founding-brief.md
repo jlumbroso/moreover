@@ -30,10 +30,12 @@ I'm building in public."* That sentence is this house's constitution-seed:
 
 1. **Every commit is a publication.** The estate's publication gates apply
    to every byte you stake here: no estate-internal material beyond what is
-   deliberately published, no secrets ever, no session identifiers, no
-   working documents about named people. When in doubt, the private home for
-   coordination is the commons HQ (`lumbroso-commons/hq`) — ask there first,
-   publish here second.
+   deliberately published, no secrets ever, no transcripts, no working
+   documents about named people. (Local session UUIDs in the crew registry
+   are fine — inert off-machine, and the machinery needs them; commit
+   `Claude-Session:` attribution links are standard.) When in doubt, the
+   private home for coordination is the commons HQ (`lumbroso-commons/hq`)
+   — ask there first, publish here second.
 2. **The deliberations are the point.** This is a demo of ADRs4AI
    (deliberative programming at espresso scale) and of ThirdX principles (a
    tool whose primary user is a model, designed in the model's native
