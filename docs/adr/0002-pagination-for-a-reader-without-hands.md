@@ -3,8 +3,8 @@
 # ADR-0002: Pagination for a reader without hands — the design space
 
 - **Date**: 2026-09-21
-- **Iteration**: 1
-- **Status**: Draft
+- **Iteration**: 2
+- **Status**: Accepted
 - **Deciders**: Jérémie Lumbroso (rulings quoted below); the founding crew (recommendations to be answered)
 
 **TL;DR**: `moreover` paginates arbitrary streams for readers that cannot
@@ -287,6 +287,55 @@ In terms of specific schemas, it's fine if we use exactly the one I gave for v0.
 
 ---
 
+## Decision
+
+All four recommendations accepted 2026-09-22, each with riders that shape
+the architecture (his answers verbatim in the QST blocks above; this
+section is the implementable synthesis):
+
+1. **Cursor store — XDG state spool, behind a trait.** Spools live under
+   `$XDG_STATE_HOME/moreover/` (fallback `~/.local/state/moreover/`),
+   overridable (his configurability rider) via `MOREOVER_STATE_DIR` env
+   var and `--state-dir` flag — env for standing preference, flag for
+   per-call override. The store sits behind a small trait so the
+   temp-file+`flock` alternate he flagged (and anything else) can slot in
+   without touching paging logic. His tempfile caveat is honored: spools
+   are *state*, never `/tmp` — nothing the OS considers garbage-collectable
+   while a cursor is outstanding. Locking: writer takes an exclusive
+   advisory lock while spooling; readers take shared locks (his sourced
+   material's Method 2, applied to our layout).
+2. **Cursor = (stream, offset), base-32.** The printed cursor is a short
+   Crockford base-32 petname (ThirdX practice, per his ruling; read
+   case-insensitively) naming a stored `(spool, offset)` pair. Page size is
+   never frozen into it. Each trailer's cursor names the *next* position;
+   exhaustion prints `cursor: null`.
+3. **Units — pluggable chunking, lines first.** A `Chunker` boundary
+   decouples "what is a page unit" from paging: v0 ships lines (default)
+   and bytes (`--bytes`); tokens arrive later behind the same boundary
+   (research task below). His `--human` generalization (units rendered for
+   the reader's native intelligibility) is adopted as a long-form flag —
+   **`-h` stays help** per fifty years of CLI convention; the affordance
+   is recorded for the ThirdX write-up.
+4. **Trailer — v0 schema frozen; rendering modular; stderr.** The v0
+   grammar is exactly his sketch, both observed forms: sized page →
+   `<moreover: page N, X/Y lines, cursor: C>`; `--all` → `<moreover: X/Y
+   lines, cursor: null>`; `Y = ?` reserved for unknown totals. Rendering
+   goes through a named-schema registry: `--schema NAME` selects,
+   `--schema-show` prints the active template, `--schema-template STR`
+   substitutes a caller-provided one ("able to change the template").
+   v0 templating is a deliberately tiny `{placeholder}` substitution;
+   Jinja-style (`minijinja`) is the upgrade path if schemas grow logic —
+   recorded so the deviation from "Jinja2 type syntax" is visible. **The
+   trailer goes to stderr** (his instinct, confirmed): stdout stays pure
+   content, so `moreover` composes in pipelines without corrupting data,
+   while interactive/model harnesses that merge streams still see the
+   trailer at the right moment.
+
+**Trade-offs accepted**: v0 drains stdin fully before printing page 1
+(that is how the sketch's first trailer can say `10/123`) — live/infinite
+streams are deferred with their `?` total; no spool GC in v0 (follow-up
+below).
+
 ## Consequences
 
 - The cursor store (QST-CURSOR-STORE) is the only stateful component; every
@@ -295,12 +344,21 @@ In terms of specific schemas, it's fine if we use exactly the one I gave for v0.
   the whole runtime story.
 - The trailer grammar, once frozen, is a compatibility promise to
   every model that reads it.
+- Two seams are now architectural promises: the store trait (alternate
+  spool backends) and the chunker boundary (future token units).
+
+## Open Follow-ups
+
+- [ ] Spool lifecycle/GC: v0 keeps spools until manually cleared; propose an expiry policy (e.g. `moreover --gc [DAYS]`) once real usage shows the accumulation rate - Owner: Ribbon 5
+- [ ] Pluggable tokenizer research (his rider on QST-PAGE-UNITS): survey `tiktoken-rs`, `tokenizers` (HF), and the cost of a tokenizer-plugin interface; report back in this ADR - Owner: Ribbon 5
+- [ ] Live/unbounded streams (the `Y = ?` case): design the partial-drain mode - Owner: Ribbon 5
+- [ ] Trailer A/B testing across models (his rider on QST-TRAILER-GRAMMAR): later, post-launch - Owner: crew
 
 ## Action Items
 
-- [ ] Answer the four QSTs (accept or override the recommendations) - Owner: Jérémie + founding crew
-- [ ] First implementation after (or judgment-first with defaults, recording deviations here) - Owner: founding crew
-- [ ] `cargo build` green + first regression test per the Third Directive - Owner: founding crew
+- [x] Answer the four QSTs (accept or override the recommendations) - Owner: Jérémie — answered 2026-09-22, all four accepted with riders
+- [ ] First implementation per the Decision section - Owner: Ribbon 5
+- [ ] `cargo build` green + first regression test per the Third Directive - Owner: Ribbon 5
 
 ## Iterations
 
@@ -308,3 +366,9 @@ In terms of specific schemas, it's fine if we use exactly the one I gave for v0.
 - Trigger: founding. Spec sketch + Rust ruling staked verbatim; four questions opened with recommendations.
 - Contributors: Jérémie Lumbroso (spec, ruling); Operator 5 (record, recommendations).
 - Outcome: `— → Draft`
+
+### Iteration 2 (2026-09-22)
+- Trigger: Jérémie answered all four QSTs — accepts with riders (configurable store + flock alternate; base-32 cursors; pluggable chunking + the `--human` affordance; modular/versioned trailer schemas on stderr).
+- Contributors: Jérémie Lumbroso (answers, incl. sourced options survey); Ribbon 5 (synthesis, Decision section, follow-ups).
+- Changes: Decision section added (the implementable synthesis, incl. the one deviation: tiny `{placeholder}` templating in v0, minijinja as upgrade path); Open Follow-ups opened (GC, tokenizer research, live streams, trailer A/B); v0 drain-fully trade-off recorded.
+- Outcome: `Draft → Accepted`; implementation unblocked.
