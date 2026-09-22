@@ -10,3 +10,6 @@ __pycache__/
 
 # Rust build artifacts (Cargo.lock is committed — this is a binary crate)
 /target
+
+# Skill we won't commit
+.claude/skills/*-1.0.0
