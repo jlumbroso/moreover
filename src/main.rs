@@ -8,7 +8,7 @@
 // Design record: docs/adr/. The name's full story: docs/adr/0001.
 
 use std::fs;
-use std::io::{self, Read, Write};
+use std::io::{self, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -49,7 +49,7 @@ Trailer (the v0 grammar is a compatibility promise):
   --schema-template T   render the trailer with template T instead
 
 Desk (subcommands — the standalone world; they never appear in pipes):
-  moreover contract     print the machine-facing contract
+  moreover contract     print the model-facing contract
   (ls, stat, drop, gc: reserved for the desk, not yet available)
 
 Introspection:
@@ -62,6 +62,22 @@ Introspection:
 /// verbs are reserved from day one so a file named `ls` can never
 /// silently page — `./ls` pages it.
 const DESK_VERBS: [&str; 5] = ["contract", "ls", "stat", "drop", "gc"];
+
+/// The null call (first dogfooding seed, 2026-09-23): bare `moreover` on
+/// a terminal has no input coming — cat/head/tail hang here; less/more
+/// check. We check, and guide both audiences instead (the audience words
+/// are the naming authority's strike). Piped-but-EMPTY input is not a
+/// null call: an empty stream still earns its 0/0 trailer — the
+/// inductive base case.
+const NULL_CALL_GUIDE: &str = "\
+moreover — a pager for readers who can't press space
+
+Nothing is arriving on stdin. moreover saves piped or file input, prints
+one page, and hands back a cursor, so a later invocation — even from a
+fresh shell — resumes exactly where this one stopped.
+
+Documentation, for humans:  moreover --help
+Contract, for models:       moreover contract";
 
 /// The machine-facing contract (`moreover contract`, ADR-0003
 /// QST-SELF-DESCRIPTION + QST-SUBCOMMAND-GRAMMAR). Describes the current
@@ -332,6 +348,11 @@ fn run() -> Result<(), (u8, String)> {
                 Some(path) => fs::read(path)
                     .map_err(|e| (1, format!("cannot read {}: {e}", path.display())))?,
                 None => {
+                    if io::stdin().is_terminal() {
+                        // The null call: no pipe, no file, no cursor —
+                        // waiting would hang a reader who meant to ask.
+                        return Err((2, NULL_CALL_GUIDE.to_string()));
+                    }
                     let mut buf = Vec::new();
                     io::stdin()
                         .lock()

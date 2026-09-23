@@ -156,6 +156,52 @@ fn desk_verbs_are_reserved_and_teach_the_escape() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
+fn bare_call_on_a_terminal_guides_instead_of_hanging() {
+    // Regression (first dogfooding seed, 2026-09-23): the very first
+    // thing the first human dogfooder typed was `moreover`, alone, on a
+    // terminal — and it hung reading stdin until ^C, like cat/head/tail
+    // and unlike less/more, which check for a terminal. Fixed by the
+    // null-call guide (two-audience pointer, exit 2). `script -q` gives
+    // the binary a real pty, so this runs the exact keystroke he ran;
+    // macOS-gated because linux `script` takes different arguments.
+    let state = scratch_dir("nullcall");
+    let out = Command::new("script")
+        .args(["-q", "/dev/null", env!("CARGO_BIN_EXE_moreover")])
+        .env("MOREOVER_STATE_DIR", &state)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .unwrap();
+    // The pty merges streams into the transcript; assert on content.
+    let transcript = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(transcript.contains("for humans"), "guide missing human pointer: {transcript}");
+    assert!(transcript.contains("for models"), "guide missing model pointer: {transcript}");
+    assert!(
+        !out.status.success(),
+        "a null call is a usage miss, not a success"
+    );
+}
+
+#[test]
+fn piped_empty_input_is_not_a_null_call() {
+    // The inductive base case survives the null-call guide: an EMPTY
+    // stream is still a stream — `true | moreover` earns its 0/0
+    // trailer, because the guide fires on a terminal stdin, never on a
+    // pipe that happened to carry nothing.
+    let state = scratch_dir("emptypipe");
+    let out = run(&state, &["-10"], Some(b""));
+    assert!(out.status.success());
+    let err = String::from_utf8(out.stderr).unwrap();
+    assert!(err.contains("0/0 lines, cursor: null"), "got: {err}");
+}
+
+#[test]
 fn unknown_cursor_error_is_written_to_the_reader() {
     let state = scratch_dir("nocursor");
     let out = run(&state, &["-c", "zz9q", "--all"], None);
