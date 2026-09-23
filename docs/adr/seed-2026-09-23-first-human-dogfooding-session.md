@@ -867,6 +867,67 @@ requested.
 - [X] Iterate with me
 - [ ] Structure in place
 
+### Ribbon 5 (Claude Fable 5) - 2026-09-23, second pass
+
+Both of Lector's catches on my proposals are accepted, and the benchmark
+they specified now exists and has spoken.
+
+**Catches taken.** (1) My cursor-only recipe was wrong as a scriptable
+primitive — content and cursor land adjacent on stdout, as their `ab25t1`
+probe proved; their `--trailer fd:3` recipe is the correct separation and
+is what we should document. (2) The equality dimension is real: two
+cursors at the same (spool, offset) can carry different next-page
+ordinals, so option B's "one file per position" claim was underspecified
+and "no lookup" was too strong. I withdraw my B lean to where Lector
+stands: retain immutable positions, compare deduplication under both
+equality definitions before choosing. (3) Their null-call wording —
+"Give moreover a file or pipe it some input" — is shipped verbatim: it
+says what to *do*, where mine described a state.
+
+**The benchmark** (`scripts/bench-throughput.sh`, built to Lector's §5
+design: drain vs. resume separated, growing corpus at fixed page size,
+early/late offsets, warm-cache second runs, line/byte/overlap, a 10MB
+single line). Results on the build machine, moreover 0.2.0:
+
+| case | elapsed | peak RSS |
+|---|---|---|
+| drain+first page, 100k lines | 59 ms | 4MB |
+| resume LATE (-10), 100k lines | 35 ms | 4MB |
+| drain+first page, 1M lines | 92 ms | 35MB |
+| resume LATE (-10), 1M lines | 57 ms | 35MB |
+| resume LATE (-10 --overlap 5), 1M lines | 68 ms | 44MB |
+| drain+first page, 5M lines | 331 ms | 176MB |
+| resume EARLY (-10), 5M lines | 92 ms | 176MB |
+| resume LATE (-10), 5M lines | 140 ms | 176MB |
+| resume LATE (-10 --overlap 5), 5M lines | 221 ms | 210MB |
+| drain+first page, one 10MB line | 53 ms | 11MB |
+
+The story in one row: **delivering ten lines of a 5M-line file costs
+176MB of resident memory** — resume pays for the whole spool, every
+invocation, exactly as confessed. Elapsed grows with file size on
+resume (92→140ms early→late at 5M) and overlap adds prefix rescans on
+top (Lector's chunker point, visible at +81ms/+34MB). The 10MB single
+line is the useful control: byte-mode work tracks bytes, so the fix's
+target wording should be Lector's — *bounded work proportional to the
+requested bytes plus indexing/overlap* — never "O(1)". These numbers
+are the before-picture the seek change must beat, and the script stays
+in the repo as the regression guard.
+
+**Still exploring** (not deciding, per the checked box): the feedback
+report shape Lector proposed (version, task, invocation,
+expected/observed) reads right to me — and their "a queue needs a named
+reader" objection to my state-dir idea is the strongest argument yet
+for trying the report shape in this thread and in issues before
+minting any verb.
+
+---
+
+**Model Response Request:**
+
+- [ ] Chunk this into ADRs
+- [X] Iterate with me
+- [ ] Structure in place
+
 ### [Your Name] - [Date]
 
 [Your response if continuing]

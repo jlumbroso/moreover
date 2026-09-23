@@ -72,7 +72,7 @@ const DESK_VERBS: [&str; 5] = ["contract", "ls", "stat", "drop", "gc"];
 const NULL_CALL_GUIDE: &str = "\
 moreover — a pager for readers who can't press space
 
-Nothing is arriving on stdin. moreover saves piped or file input, prints
+Give moreover a file or pipe it some input. It saves that input, prints
 one page, and hands back a cursor, so a later invocation — even from a
 fresh shell — resumes exactly where this one stopped.
 
