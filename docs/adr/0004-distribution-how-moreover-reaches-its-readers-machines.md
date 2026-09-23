@@ -182,7 +182,7 @@ Option A sounds good for now. In parallel, I would like to explore and prepare t
 - [x] Answer the three QSTs - Owner: Jérémie — all three A, 2026-09-23 (`57481c1`)
 - [x] Version 0.1.0: bump, tag, publish to crates.io - Owner: Ribbon 5 — done 2026-09-22 (`3059693`, tag `v0.1.0`); checklist run in full, package list verified clean
 - [ ] `dist init` + release workflow committed; verified with `dist plan` - Owner: Ribbon 5 (in flight)
-- [ ] Tap prerequisites, the two steps only he can do: create `jlumbroso/homebrew-tap` (empty public repo) and add a `HOMEBREW_TAP_TOKEN` secret (a fine-grained PAT with write access to the tap) to `jlumbroso/moreover`'s Actions secrets - Owner: Jérémie
+- [ ] Tap prerequisites — step 1 done: `jlumbroso/homebrew-tap` created 2026-09-23 (by Ribbon 5 at his request, via gh). Step 2 remains his: add a `HOMEBREW_TAP_TOKEN` secret to `jlumbroso/moreover`'s Actions secrets (fine-grained PAT: resource owner `jlumbroso`, repository access limited to `homebrew-tap`, permission Contents read+write) - Owner: Jérémie
 - [ ] First tagged release with binaries — AFTER the tap prerequisites, so the homebrew publish job has somewhere to push - Owner: Ribbon 5
 - [ ] Homebrew-core groundwork (his rider): adopt `brew audit`/core checklist against our own formula early; report readiness gaps in an iteration here - Owner: Ribbon 5, post-first-release
 - [ ] `$GITHUB_STEP_SUMMARY` rich release logs (his idea, self-deferred while on canned workflow) — revisit if we ever fork dist's workflow - Owner: parked
