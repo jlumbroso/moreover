@@ -96,7 +96,7 @@ honestly, until 0.1.0 lands on the registry).
 ## Questions
 
 ### QST-DIST-LADDER: Which channels, in which order?
-- Status: unanswered
+- Status: answered
 - Why asking: each rung costs setup and ongoing surface; the audience (agent harnesses bootstrapping a machine) shapes which rungs matter.
 - Need: pick a letter (or override — any shape answers)
 
@@ -119,13 +119,13 @@ experience says matters. *If wrong*: if his launch plan wants zero
 release infrastructure before the announcement, C now → A at launch, no
 work lost.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Yes! Definitely Option A — and I am looking forward to learning how to release something on Homebrew. For the GitHub Release, let's make sure to use continuous integration, and -a workflow that includes `$GITHUB_STEP_SUMMARY` for a rich log creation- (ignore for now, since I agree with your recommendation in the next QST to use a canned workflow).
 
 ---
 
 ### QST-DIST-TOOLING: cargo-dist, or a custom release workflow?
-- Status: unanswered
+- Status: answered
 - Why asking: the machinery choice sets the crew's permanent CI-maintenance budget.
 - Need: pick a letter (or override — any shape answers)
 
@@ -146,13 +146,13 @@ init`'s output fights this repo's shape (the workspace is unusual: a
 public tool inside a private-hub submodule chain), that is **B** with the
 narrowest possible matrix.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Brilliant rationale! And I learned the expression "at espresso scale"! Yes, I agree with Option A. I'll go strike out the part about a custom workflow in the previous question. Thanks for the thoughtfulness here. I really agree that "the YANL we don't own is attention returned to the tool"!
 
 ---
 
 ### QST-TAP-HOME: Where does the tap live, given the repo's own home may move?
-- Status: unanswered
+- Status: answered
 - Why asking: a Homebrew tap is a public repo with a lasting install-command name (`brew install <owner>/tap/moreover`); the tool's repository may itself move to an organization someday, and the install command is user-facing vocabulary that shouldn't churn.
 - Need: pick a letter (or override — any shape answers)
 
@@ -172,8 +172,8 @@ is his, not mine. *If wrong*: if that placement settles soon and the
 install vocabulary should be born under its final name, **B** — and the
 ladder's binary rung still ships meanwhile, unaffected.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Option A sounds good for now. In parallel, I would like to explore and prepare the groundwork for [inclusion into Homebrew Core](https://github.com/Homebrew/homebrew-core/blob/main/CONTRIBUTING.md), if `moreover` proves to be useful. Even if we don't publish there immediately, it would help us to adopt their checklist and audit.
 
 ---
 
