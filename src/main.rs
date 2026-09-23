@@ -36,8 +36,8 @@ Resumption:
   -c, --cursor ID       resume the stream that ID names
                         (a cursor is only valid if moreover printed it —
                         never invent or extrapolate one)
-  -c last               resume the newest cursor minted from the current
-                        directory (each cursor records where it was minted)
+  -c last               select the newest saved cursor for this working
+                        directory in the selected state directory
 
 State:
   --state-dir PATH      spool/cursor store (default: $MOREOVER_STATE_DIR,
@@ -97,10 +97,9 @@ invocations:
   stdin:    <producer> | moreover -10
   file:     moreover FILE -10
   resume:   moreover -c CURSOR --all
+  recover:  moreover -c last
   contract: moreover contract
   Resume reads saved input, ignores stdin, and rejects an input file.
-  moreover -c last resumes the newest cursor minted from the current
-  directory; if none was minted here, it reports that instead.
   The contract takes no arguments and does not read stdin.
   ls, stat, drop, and gc are reserved subcommands, not yet available.
   Prefix a filename matching a subcommand with ./ (for example, ./ls).
@@ -132,15 +131,41 @@ output:
   stdout places the trailer after the content; none suppresses it;
   fd:N writes to an inherited descriptor; file:PATH appends to a file.
 
+shell redirection (with the default trailer destination):
+  moreover FILE -10
+    Content goes to stdout; the trailer goes to stderr. Capture both.
+  moreover FILE -10 2>&1
+    Content, trailer, and errors share stdout. A downstream pipe or
+    captured value receives the trailer as data alongside the content.
+  moreover FILE -10 2>/dev/null
+    The trailer and errors are discarded. A cursor may still be saved,
+    but its ID is lost from this output.
+  For callers that capture only stdout, use --trailer stdout to include
+  the trailer after the content. This still mixes content and metadata;
+  use --trailer fd:N or file:PATH when they need separate destinations.
+  Changing --trailer does not redirect errors; they still use stderr.
+  Check the exit status before using the output.
+
 cursors:
-  Only reuse a cursor moreover printed — never invent or extrapolate one.
+  Use a printed cursor ID — never invent or extrapolate one.
+  The reserved word last selects a saved cursor as described below.
   A cursor fixes a position in saved input, not page size, unit, or overlap.
-  Resuming the same cursor with the same page size, unit, and overlap
+  Resuming a printed cursor ID with the same page size, unit, and overlap
   repeats the same content. The next cursor ID may differ.
   Resumption leaves the original cursor unchanged.
   IDs are case-insensitive; o folds to 0, and i and l fold to 1.
-  Each cursor records the directory it was minted from; `last` is
-  reserved vocabulary resolved against that record, never a minted ID.
+
+last (recovery):
+  -c last selects the newest saved cursor for the current working
+  directory within the selected state directory, by cursor-file
+  modification time. No matching record is an error.
+  last is resolved again on each call. Other invocations in the same
+  working directory and state directory can change its selection,
+  including to another stream. Use a printed ID for a fixed position.
+  A call that creates no cursor leaves last unchanged, even at exhaustion.
+  Stop at cursor: null; another -c last can repeat already-read content.
+  Older records without a working directory do not match last;
+  they can still be resumed by their printed IDs.
 
 state (first applicable entry wins):
   --state-dir PATH > $MOREOVER_STATE_DIR > $XDG_STATE_HOME/moreover

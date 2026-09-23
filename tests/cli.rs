@@ -58,6 +58,47 @@ fn trailer_stdout_moves_it_for_stdout_only_harnesses() {
 }
 
 #[test]
+#[cfg(unix)]
+fn shell_redirection_can_merge_or_discard_the_continuation() {
+    // A caller discarded stderr out of habit and lost the continuation.
+    // Exercise actual shell redirections: merging preserves the trailer
+    // but mixes it with content; routing the trailer to stdout survives
+    // stderr suppression without restoring a content-only stdout.
+    let state = scratch_dir("redirections");
+    let doc = state.join("input.txt");
+    std::fs::write(&doc, lines(5)).unwrap();
+    let invoke = |script: &str| {
+        Command::new("/bin/sh")
+            .args(["-c", script, "moreover-redirection-test"])
+            .arg(env!("CARGO_BIN_EXE_moreover"))
+            .arg(&doc)
+            .env("MOREOVER_STATE_DIR", &state)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap()
+    };
+
+    let separate = invoke("\"$1\" \"$2\" -2");
+    let merged = invoke("\"$1\" \"$2\" -2 2>&1");
+    let discarded = invoke("\"$1\" \"$2\" -2 2>/dev/null");
+    let stdout_trailer = invoke("\"$1\" \"$2\" -2 --trailer stdout 2>/dev/null");
+
+    for output in [&separate, &merged, &discarded, &stdout_trailer] {
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+    }
+    assert_eq!(separate.stdout, lines(2));
+    assert!(String::from_utf8_lossy(&separate.stderr)
+        .starts_with("<moreover: page 1, 2/5 lines, cursor: "));
+    assert_eq!(discarded.stdout, lines(2));
+    assert!(discarded.stderr.is_empty());
+    for output in [&merged, &stdout_trailer] {
+        assert!(output.stderr.is_empty());
+        assert!(String::from_utf8_lossy(&output.stdout)
+            .starts_with("l1\nl2\n<moreover: page 1, 2/5 lines, cursor: "));
+    }
+}
+
+#[test]
 fn trailer_none_hides_it_entirely() {
     let state = scratch_dir("none");
     let out = run(&state, &["-3", "--trailer", "none"], Some(&lines(9)));
@@ -246,6 +287,48 @@ fn c_last_resumes_this_desks_newest_cursor_only() {
     assert_eq!(out.status.code(), Some(1));
     let err = String::from_utf8(out.stderr).unwrap();
     assert!(err.contains("no cursors were minted from this directory"), "got: {err}");
+}
+
+#[test]
+fn c_last_remains_selectable_after_exhaustion_and_complete_new_input() {
+    // `last` looks up a saved cursor, not the last invocation's completion
+    // state. Finishing a stream, or fully consuming a new short input,
+    // mints no successor: another `last` can replay the earlier remainder.
+    let state = scratch_dir("last-completed");
+    let desk = scratch_dir("last-completed-desk");
+    let doc = desk.join("input.txt");
+    let short = desk.join("short.txt");
+    std::fs::write(&doc, lines(5)).unwrap();
+    std::fs::write(&short, b"new input\n").unwrap();
+    let invoke = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_moreover"))
+            .args(args)
+            .current_dir(&desk)
+            .env("MOREOVER_STATE_DIR", &state)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap()
+    };
+
+    let first = invoke(&[doc.to_str().unwrap(), "-2"]);
+    assert!(first.status.success());
+    assert_eq!(first.stdout, lines(2));
+    let remainder = b"l3\nl4\nl5\n";
+    for _ in 0..2 {
+        let finished = invoke(&["-c", "last", "--all"]);
+        assert!(finished.status.success());
+        assert_eq!(finished.stdout, remainder);
+        assert!(String::from_utf8_lossy(&finished.stderr).contains("cursor: null>"));
+    }
+
+    let complete_new_input = invoke(&[short.to_str().unwrap(), "--all"]);
+    assert!(complete_new_input.status.success());
+    assert_eq!(complete_new_input.stdout, b"new input\n");
+    assert!(String::from_utf8_lossy(&complete_new_input.stderr).contains("cursor: null>"));
+
+    let older_remainder = invoke(&["-c", "last", "--all"]);
+    assert!(older_remainder.status.success());
+    assert_eq!(older_remainder.stdout, remainder);
 }
 
 #[test]
