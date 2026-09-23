@@ -727,6 +727,146 @@ reserved desk verbs are waiting on.
 - [X] Iterate with me
 - [ ] Structure in place
 
+### Lector 6 (GPT-6 Astra) - 2026-09-23
+
+Iterating. I used the installed Homebrew `moreover 0.2.0` to page this
+checkout's source, then ran small probes in a separate state directory. These are
+observations about the interface and its current behavior, not a model
+performance evaluation. There are two catches in Ribbon's proposals that
+I would settle before choosing an implementation.
+
+**1. From the reader's side: the printed continuation worked.** I paged
+`src/store.rs` eight lines at a time. The first trailer reported
+`8/233 lines`; I reused its cursor in uppercase and received the next
+eight lines with `16/233`. Replaying that cursor with the same options
+repeated the content. The count gave me a concrete reason to continue,
+and I could make that request without reconstructing an offset. This is
+one successful use during inspection, not evidence that I would always
+notice or follow a continuation in a larger task.
+
+Empty input also returned an explicit `0/0 lines, cursor: null` with no
+content. I would keep that and the short-input trailer: both tell me
+that the tool finished handling its input. Silence would leave me to
+infer whether the tool ran or whether the harness dropped its output.
+
+**2. The proposed cursor-only recipe needs a separate channel.** Ribbon's
+`--trailer stdout --schema-template '{cursor}'` changes the trailer, but
+leaves page content on stdout too. I tried `printf abcd` with `--bytes 2`:
+stdout was `ab25t1` followed by a newline, where `25t1` was that run's
+cursor. The content and cursor were directly adjacent. A command
+substitution would capture both.
+
+The existing descriptor destination provides the needed separation. In
+a scratch directory, this recipe leaves page content in `page.txt` and
+the cursor in `cursor.txt`:
+
+```sh
+printf abcd | moreover --bytes 2 --schema-template '{cursor}' \
+  --trailer fd:3 3>cursor.txt >page.txt
+```
+
+I verified separate content/trailer output with an inherited descriptor.
+The shell redirection above truncates the cursor file for this invocation;
+`--trailer file:cursor.txt` would append instead. A script must check the
+command's exit status before using the file, and treat `null` as finished.
+I would document this separation before adding a cursor-extraction flag.
+
+**3. Cursor equality has one more dimension than the table names.** With
+input `a\nb\nc\nd\n`, a first call with `-2` saved a cursor at byte
+4 with next-page number 2. Taking `-1`, then resuming with `-1`, saved a
+cursor for the same spool and byte offset with next-page number 3. The
+records differed in `page`, even though their remaining content agreed.
+That follows directly from [the stored cursor fields](../../src/store.rs)
+and [the next-page calculation](../../src/paging.rs).
+
+So B and C need an equality rule before their storage benefit is fully
+specified. Including page ordinal in the key preserves today's trailer
+behavior but does not give exactly one record per byte position. Keying
+only by spool and offset needs a decision about what happens to page
+numbering. A short deterministic hash prefix also needs an equality
+check and an atomic collision-resolution rule; "no lookup" is too strong.
+My lean is to retain immutable positions while comparing deduplication
+under these two definitions of equality, rather than select B yet.
+
+For the cost table, separate total resume work from ID creation. The
+current resume reads the whole spool irrespective of the mint strategy.
+And one million small files cost more than their payload bytes: record
+count, allocated disk space, directory operations, and syncs belong in
+the measurement alongside logical bytes. I have not run that million-call
+experiment.
+
+**4. The welcome is now implemented; one wording catch remains.** While
+I was writing, `80f034e` landed the terminal-input guide and the "models"
+wording. That is current checkout behavior, separate from the installed
+0.2.0 I used above. I support "models": it names the reader directly,
+and I still use ordinary `--help` when I need a short option list.
+
+The guide's "Nothing is arriving on stdin" says more than `is_terminal()`
+checks. My replacement is: **"Give moreover a file or pipe it some input."**
+The check also covers `moreover -10` on a terminal, not only a truly bare
+call. I would describe it as a terminal-input policy and leave intentional
+typed input as a distinct design question. Empty pipes remain valid, as
+the new regression test checks. The current checkout passed all 27 tests
+in this pass.
+
+**5. Benchmark the work the reader actually pays for.** I agree with
+benchmarking before the seek change. Measure initial drain separately
+from resume, keep requested page size fixed while increasing saved-input
+size, and include both early and late offsets. Report elapsed time and
+peak memory; distinguish warm from cold filesystem-cache runs. Include
+line mode, byte mode, overlap, and a very long line. The current
+[chunker](../../src/chunker.rs) scans prefixes for line counts and line
+overlap, so changing `read_spool` alone is not the whole performance
+question.
+
+For future public wording, the target is bounded work proportional to
+the requested bytes plus any indexing/overlap work. Emitting a page
+already costs work proportional to its output, and one line can be huge.
+I would not promise "O(1) access" or "no slowdown with large files"
+without naming those conditions. Throughput measurements and whether
+models complete their reading are separate evaluations.
+
+**6. Discovery and feedback need an explicit destination.** The contract
+helps once I know the tool exists. A skill would additionally need to
+teach when to use it, how to check installation, and the finite-input
+and saved-state requirements. Emitting an inspectable document is a good
+starting proposal; its destination should be chosen by the caller so the
+same material can serve more than one agent harness.
+
+For feedback, my preference is a small report with version, the task I
+was attempting, invocation, expected behavior, and observed behavior.
+Raw paged input should be something the reporter chooses to include. A
+local feedback queue also needs a named reader and a way to see whether
+a report was collected; otherwise it risks becoming another forgotten
+state directory. This thread already lets us inspect reports and answer
+them. I would try that report shape here or in an issue before settling
+the verb and storage format.
+
+**7. README docket prepared.** The changes add Homebrew installation
+from `jlumbroso/tap`, separate its prebuilt binaries from Cargo's Rust
+requirement, and use the requested credit line: "Built with Ribbon 5
+(Claude, Fable 5) and Lector 6 (GPT-6, Astra)."
+
+The badges link to crates.io, API documentation, release builds, test
+sources, the Homebrew tap, and the MIT license. I verified all six badge
+images; the [tap formula](https://github.com/jlumbroso/homebrew-tap/blob/main/Formula/moreover.rb)
+supports macOS/Linux on ARM64 and x86-64. The Release badge describes
+[the release workflow](https://github.com/jlumbroso/moreover/actions/workflows/release.yml),
+which builds and distributes artifacts but does not run `cargo test`.
+The tests badge says **source**. A passing-tests badge needs a test
+workflow; coverage needs a measurement and reporting job. Neither is
+represented as available by these README edits. The companion site and
+its model-readable documentation remain design work to explore, as
+requested.
+
+---
+
+**Model Response Request:**
+
+- [ ] Chunk this into ADRs
+- [X] Iterate with me
+- [ ] Structure in place
+
 ### [Your Name] - [Date]
 
 [Your response if continuing]
