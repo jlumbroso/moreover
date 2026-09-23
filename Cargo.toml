@@ -2,7 +2,7 @@
 name = "moreover"
 version = "0.2.0"
 edition = "2021"
-description = "A pager for readers who can't press space — cursor-based, non-interactive pagination for LLMs, agents, and scripts."
+description = "Pager for readers who can't press space: cursor-based, non-interactive pagination for LLMs, agents, and scripts"
 license = "MIT"
 repository = "https://github.com/jlumbroso/moreover"
 homepage = "https://github.com/jlumbroso/moreover"

@@ -183,8 +183,8 @@ Option A sounds good for now. In parallel, I would like to explore and prepare t
 - [x] Version 0.1.0: bump, tag, publish to crates.io - Owner: Ribbon 5 — done 2026-09-22 (`3059693`, tag `v0.1.0`); checklist run in full, package list verified clean
 - [ ] `dist init` + release workflow committed; verified with `dist plan` - Owner: Ribbon 5 (in flight)
 - [ ] Tap prerequisites — step 1 done: `jlumbroso/homebrew-tap` created 2026-09-23 (by Ribbon 5 at his request, via gh). Step 2 remains his: add a `HOMEBREW_TAP_TOKEN` secret to `jlumbroso/moreover`'s Actions secrets (fine-grained PAT: resource owner `jlumbroso`, repository access limited to `homebrew-tap`, permission Contents read+write) - Owner: Jérémie
-- [ ] First tagged release with binaries — AFTER the tap prerequisites, so the homebrew publish job has somewhere to push - Owner: Ribbon 5
-- [ ] Homebrew-core groundwork (his rider): adopt `brew audit`/core checklist against our own formula early; report readiness gaps in an iteration here - Owner: Ribbon 5, post-first-release
+- [x] First tagged release with binaries - Owner: Ribbon 5 — v0.2.0, 2026-09-23: five platforms + shell installer + formula, verified end-to-end with a Homebrew install on the build machine
+- [ ] Homebrew-core groundwork (his rider): adopt `brew audit`/core checklist; first pass done (three description-style findings, fixed in Cargo.toml — takes effect in the next release's formula); full `brew audit --strict --new` pass before any core PR - Owner: Ribbon 5
 - [ ] `$GITHUB_STEP_SUMMARY` rich release logs (his idea, self-deferred while on canned workflow) — revisit if we ever fork dist's workflow - Owner: parked
 
 ## Iterations
@@ -199,6 +199,12 @@ Option A sounds good for now. In parallel, I would like to explore and prepare t
 - Contributors: Jérémie (answers, riders); Ribbon 5 (processing, implementation).
 - Changes: action items rewritten into the implementation sequence; the two human-only steps isolated (tap repo, token secret) so his surface stays two clicks.
 - Outcome: `Draft → Accepted`; dist wiring in flight.
+
+### Iteration 3 (2026-09-23)
+- Trigger: the ladder climbed end to end — v0.2.0 on crates.io, tag-triggered CI (5 platforms + installer + formula), formula in the tap, and `brew install jlumbroso/tap/moreover` verified on the build machine, machine-wide for every hive.
+- Contributors: Jérémie (token, visibility flip, and the private-repo-404 diagnosis — his catch); Ribbon 5 (release, debugging, this record).
+- Changes: two field incidents recorded for the next traveler: (1) a fine-grained PAT scoped to the *tool's* repo instead of the *tap* fails the formula push with 403 — the tap is the only repo the token needs; (2) release-asset downloads 404 anonymously while the repo is private, and also for the seconds between the formula-push and `announce` jobs (a rerun-ordering race — retry, don't debug). First `brew audit` pass: three description-style findings, fixed at the source (Cargo.toml; next release's formula inherits). Adoption note for the record: the first production reader to resume a cursor by retyping it from context was a model (Ribbon 5, `ny67`) — the design's success criterion, observed on day one.
+- Outcome: status `Accepted` unchanged; distribution rungs 1–3 complete; core (rung 4) waits on adoption.
 
 ---
 
