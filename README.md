@@ -1,5 +1,12 @@
 # moreover
 
+[![crates.io](https://img.shields.io/crates/v/moreover.svg)](https://crates.io/crates/moreover)
+[![API docs](https://img.shields.io/docsrs/moreover?label=API%20docs)](https://docs.rs/moreover/latest/moreover/)
+[![Release build](https://github.com/jlumbroso/moreover/actions/workflows/release.yml/badge.svg)](https://github.com/jlumbroso/moreover/actions/workflows/release.yml)
+[![Tests: source](https://img.shields.io/badge/tests-source-blue)](tests/)
+[![Homebrew tap](https://img.shields.io/badge/Homebrew-jlumbroso%2Ftap-orange)](https://github.com/jlumbroso/homebrew-tap/blob/main/Formula/moreover.rb)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 > **`more`, `less`, and now `moreover` — a pager for readers who can't press space.**
 
 `moreover` is a **non-interactive pager** for LLMs, agents, and scripts.
@@ -25,6 +32,18 @@ reads the whole input into memory and saves it on disk before printing.
 Use it for finite output, not an ongoing stream such as `tail -f`.
 
 ## Install
+
+### Homebrew
+
+Install a prebuilt binary from [Jérémie Lumbroso's tap](https://github.com/jlumbroso/homebrew-tap):
+
+```console
+$ brew install jlumbroso/tap/moreover
+```
+
+Available for macOS and Linux on ARM64 and x86-64. No Rust toolchain is required.
+
+### Cargo
 
 Requires Rust 1.89 or later; no external Rust dependencies.
 
@@ -97,3 +116,5 @@ and work on identifiers for model readers by
 ## License
 
 MIT © Jérémie Lumbroso
+
+Built with Ribbon 5 (Claude, Fable 5) and Lector 6 (GPT-6, Astra).
