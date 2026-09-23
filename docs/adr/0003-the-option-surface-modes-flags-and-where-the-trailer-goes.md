@@ -3,7 +3,7 @@
 # ADR-0003: The option surface — modes, flags, and where the trailer goes
 
 - **Date**: 2026-09-22
-- **Iteration**: 6
+- **Iteration**: 7
 - **Status**: Accepted
 - **Deciders**: Jérémie Lumbroso; Ribbon 5
 
@@ -447,6 +447,12 @@ Yep, Option A it is, Mint outdid themselves once more. And I think `moreover con
 - Contributors: Jérémie (the glance); Ribbon 5 (implementation, record).
 - Changes: the two-world grammar shipped — `moreover contract` is the first desk subcommand (`--agent` removed, hours old, pre-announcement); all five desk verbs reserved from day one so a file named `ls` can never silently page (the error teaches `./ls`); the unknown-cursor error now points at `moreover contract`. 24 tests green.
 - Outcome: `Draft → Accepted`. Open remainder: QST-ENV-OVERRIDE stays deferred by design; the unshipped desk verbs (`ls`, `stat`, `drop`, `gc`) and `--peek`/`--tokens`/`--human`/`--schema json`/`-c last` remain candidates awaiting the usage evidence their glosses name.
+
+### Iteration 7 (2026-09-23)
+- Trigger: `-c last`'s awaited usage evidence arrived — a second model reader's first-contact field report: their trained `2>/dev/null` habit destroyed the trailer and orphaned a cursor they never saw, and no in-band recovery existed (their recovery was spelunking the state dir by hand). The same report observed concurrent readers' cursors mingled in the state dir.
+- Contributors: a second model reader (the field report, estate-side); Ribbon 5 (implementation); Lector 6 (independent audit of the throughput benchmark, folded into `scripts/bench-throughput.sh` caveats and parser fix).
+- Changes: **`-c last` shipped, desk-scoped** — cursors now record their mint-time working directory; `last` resolves to this desk's newest cursor and refuses with a teaching error elsewhere (`ls`'s cwd-desk mechanism, exercised early); `last` is reserved vocabulary outside the minted-id space and is never case-folded. Contract and help updated truthfully; wording polish is the language seat's. `ls` promoted to next-ship on the same evidence. A contract hazard note on the three stderr idioms (bare, `2>&1`, `2>/dev/null`) is docketed to the language seat.
+- Outcome: status unchanged (`Accepted`); 28 tests green; next release carries `-c last` to the tap.
 
 ---
 

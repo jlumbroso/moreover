@@ -144,7 +144,7 @@ fn cursor_ids_always_mix_letters_and_digits() {
     let store = scratch_store("mixed");
     for _ in 0..100 {
         let id = store
-            .put_cursor(&Cursor { spool: "s".into(), offset: 0, line: 0, page: 1 })
+            .put_cursor(&Cursor { spool: "s".into(), offset: 0, line: 0, page: 1, desk: String::new() })
             .unwrap();
         assert!(
             id.bytes().any(|b| b.is_ascii_digit()) && id.bytes().any(|b| b.is_ascii_alphabetic()),

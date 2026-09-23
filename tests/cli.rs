@@ -202,6 +202,53 @@ fn piped_empty_input_is_not_a_null_call() {
 }
 
 #[test]
+fn c_last_resumes_this_desks_newest_cursor_only() {
+    // Regression for a second model reader's first-contact failure
+    // (field report, 2026-09-23): their first invocation appended
+    // 2>/dev/null out of trained habit, destroying the trailer and
+    // orphaning a cursor they never saw — and v0.2.0 had no in-band
+    // recovery. `-c last` is that recovery, desk-scoped so "my last"
+    // never resumes a concurrent reader's stream from another directory.
+    let state = scratch_dir("last");
+    let desk_a = scratch_dir("last-desk-a");
+    let desk_b = scratch_dir("last-desk-b");
+    let doc = desk_a.join("doc.txt");
+    std::fs::write(&doc, lines(9)).unwrap();
+
+    // Mint from desk A (trailer discarded — the F1 habit, simulated).
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
+    cmd.args([doc.to_str().unwrap(), "-3"])
+        .current_dir(&desk_a)
+        .env("MOREOVER_STATE_DIR", &state)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    assert!(cmd.status().unwrap().success());
+
+    // Recovery from desk A: last finds the orphaned cursor.
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
+    cmd.args(["-c", "last", "-3"])
+        .current_dir(&desk_a)
+        .env("MOREOVER_STATE_DIR", &state)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let out = cmd.output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(out.stdout, lines(9)[9..18].to_vec(), "lines 4..6 expected");
+
+    // Desk B minted nothing: last must refuse and teach, not guess.
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
+    cmd.args(["-c", "last", "-3"])
+        .current_dir(&desk_b)
+        .env("MOREOVER_STATE_DIR", &state)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    let out = cmd.output().unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    let err = String::from_utf8(out.stderr).unwrap();
+    assert!(err.contains("no cursors were minted from this directory"), "got: {err}");
+}
+
+#[test]
 fn unknown_cursor_error_is_written_to_the_reader() {
     let state = scratch_dir("nocursor");
     let out = run(&state, &["-c", "zz9q", "--all"], None);

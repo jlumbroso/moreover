@@ -81,6 +81,9 @@ fn deliver(
             offset: end as u64,
             line: total_units(&data[..end], Unit::Lines) as u64,
             page: page + 1,
+            desk: std::env::current_dir()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default(),
         })?)
     } else {
         None

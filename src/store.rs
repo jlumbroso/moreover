@@ -12,13 +12,17 @@ use std::path::PathBuf;
 
 /// A cursor names a (stream, offset) — never a page size (QST-CURSOR-SEMANTICS).
 /// `line` and `page` ride along so trailers can report position without
-/// re-scanning the spool.
+/// re-scanning the spool. `desk` is the mint-time working directory
+/// (ADR-0003's desk scoping): shells die between a reader's invocations,
+/// but the working directory survives — so `-c last` can mean "MY last"
+/// on a machine full of concurrent readers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cursor {
     pub spool: String,
     pub offset: u64,
     pub line: u64,
     pub page: u64,
+    pub desk: String,
 }
 
 pub trait Store {
@@ -104,8 +108,8 @@ impl Store for FsStore {
                     Ok(mut f) => {
                         write!(
                             f,
-                            "spool={}\noffset={}\nline={}\npage={}\n",
-                            cursor.spool, cursor.offset, cursor.line, cursor.page
+                            "spool={}\noffset={}\nline={}\npage={}\ndesk={}\n",
+                            cursor.spool, cursor.offset, cursor.line, cursor.page, cursor.desk
                         )?;
                         f.sync_all()?;
                         return Ok(id);
@@ -127,24 +131,56 @@ impl Store for FsStore {
         let mut offset = None;
         let mut line = None;
         let mut page = None;
+        let mut desk = String::new(); // absent in pre-desk records: tolerated
         for l in text.lines() {
             match l.split_once('=') {
                 Some(("spool", v)) => spool = Some(v.to_string()),
                 Some(("offset", v)) => offset = v.parse().ok(),
                 Some(("line", v)) => line = v.parse().ok(),
                 Some(("page", v)) => page = v.parse().ok(),
+                Some(("desk", v)) => desk = v.to_string(),
                 _ => {}
             }
         }
         match (spool, offset, line, page) {
             (Some(spool), Some(offset), Some(line), Some(page)) => {
-                Ok(Cursor { spool, offset, line, page })
+                Ok(Cursor { spool, offset, line, page, desk })
             }
             _ => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("corrupt cursor record: {id}"),
             )),
         }
+    }
+}
+
+impl FsStore {
+    /// The newest cursor minted from `desk` — `-c last`'s resolver
+    /// (ADR-0003; shipped on first-contact field evidence: the likeliest
+    /// first failure, a destroyed trailer, had no in-band recovery).
+    /// Scoped to the desk so "my last" never resumes a concurrent
+    /// reader's stream; pre-desk records (no desk field) never match.
+    pub fn last_cursor_for_desk(&self, desk: &str) -> io::Result<Option<String>> {
+        let mut best: Option<(std::time::SystemTime, String)> = None;
+        for entry in fs::read_dir(self.root.join("cursors"))? {
+            let entry = entry?;
+            let id = match entry.file_name().into_string() {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+            let cursor = match self.get_cursor(&id) {
+                Ok(c) => c,
+                Err(_) => continue, // a corrupt record shouldn't break `last`
+            };
+            if cursor.desk != desk || desk.is_empty() {
+                continue;
+            }
+            let mtime = entry.metadata()?.modified()?;
+            if best.as_ref().map_or(true, |(t, _)| mtime > *t) {
+                best = Some((mtime, id));
+            }
+        }
+        Ok(best.map(|(_, id)| id))
     }
 }
 

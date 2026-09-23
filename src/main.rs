@@ -36,6 +36,8 @@ Resumption:
   -c, --cursor ID       resume the stream that ID names
                         (a cursor is only valid if moreover printed it —
                         never invent or extrapolate one)
+  -c last               resume the newest cursor minted from the current
+                        directory (each cursor records where it was minted)
 
 State:
   --state-dir PATH      spool/cursor store (default: $MOREOVER_STATE_DIR,
@@ -97,6 +99,8 @@ invocations:
   resume:   moreover -c CURSOR --all
   contract: moreover contract
   Resume reads saved input, ignores stdin, and rejects an input file.
+  moreover -c last resumes the newest cursor minted from the current
+  directory; if none was minted here, it reports that instead.
   The contract takes no arguments and does not read stdin.
   ls, stat, drop, and gc are reserved subcommands, not yet available.
   Prefix a filename matching a subcommand with ./ (for example, ./ls).
@@ -135,6 +139,8 @@ cursors:
   repeats the same content. The next cursor ID may differ.
   Resumption leaves the original cursor unchanged.
   IDs are case-insensitive; o folds to 0, and i and l fold to 1.
+  Each cursor records the directory it was minted from; `last` is
+  reserved vocabulary resolved against that record, never a minted ID.
 
 state (first applicable entry wins):
   --state-dir PATH > $MOREOVER_STATE_DIR > $XDG_STATE_HOME/moreover
@@ -332,9 +338,32 @@ fn run() -> Result<(), (u8, String)> {
     let store = FsStore::open(root.clone())
         .map_err(|e| (1, format!("cannot open state dir {}: {e}", root.display())))?;
 
+    // `last` is reserved resume vocabulary (never mintable: ids always mix
+    // letters and digits) — resolved against this directory's desk before
+    // the id path, so it is never case-folded like a minted id would be.
+    let cursor = match &args.cursor {
+        Some(id) if id.eq_ignore_ascii_case("last") => {
+            let desk = std::env::current_dir()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default();
+            match store.last_cursor_for_desk(&desk) {
+                Ok(Some(id)) => Some(id),
+                Ok(None) => {
+                    return Err((1, format!(
+                        "no cursors were minted from this directory (desk: {desk}) — \
+                         resume from the directory where you paged, or pass an explicit \
+                         cursor; run `moreover contract` for the rules"
+                    )));
+                }
+                Err(e) => return Err((1, format!("cannot resolve last: {e}"))),
+            }
+        }
+        other => other.clone(),
+    };
+
     let stdout = io::stdout();
     let mut out = stdout.lock();
-    let trailer = match &args.cursor {
+    let trailer = match &cursor {
         Some(id) => page_resume(&store, id, args.take, args.unit, args.overlap, &mut out)
             .map_err(|e| {
                 if e.kind() == io::ErrorKind::NotFound {

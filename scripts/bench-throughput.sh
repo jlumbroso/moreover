@@ -9,6 +9,10 @@
 # a very-long-line specimen; elapsed time + peak RSS; warm-cache runs
 # (each case runs twice, the second is reported).
 #
+# CAVEATS (Lector 6 audit, seed thread 2nd pass): elapsed includes ~14ms
+# two-process timer overhead; the warmed "first page" reuses an existing
+# spool (fresh-ingestion case pending); treat figures as indicative until
+# the single-process-timer rerun. Not yet a regression gate.
 # Usage: scripts/bench-throughput.sh [BIN]   (default: target/release/moreover)
 # Writes nothing outside its scratch dir; prints a markdown table.
 set -euo pipefail
@@ -43,7 +47,11 @@ time_case() {
   /usr/bin/time -l "$@" >/dev/null 2>"$SCRATCH/time.out" || \
     /usr/bin/time -v "$@" >/dev/null 2>"$SCRATCH/time.out"
   t1=$(python3 -c 'import time; print(time.time_ns())')
-  rss=$(awk '/maximum resident set size/{print int($1/1048576)"MB"} /Maximum resident set size/{print int($1/1024)"MB"}' "$SCRATCH/time.out" | head -1)
+  # macOS line: "  180224  maximum resident set size" (bytes, value first);
+  # GNU line: "Maximum resident set size (kbytes): 180224" (value is $6) —
+  # parser corrected per Lector 6's fixture check (the first draft printed
+  # 0MB on the GNU format).
+  rss=$(awk '/maximum resident set size/{print int($1/1048576)"MiB"} /Maximum resident set size/{print int($6/1024)"MiB"}' "$SCRATCH/time.out" | head -1)
   printf "| %s | %d ms | %s |\n" "$name" $(( (t1 - t0) / 1000000 )) "${rss:-?}"
 }
 
@@ -62,7 +70,7 @@ echo "|---|---|---|"
 for N in 100000 1000000 5000000; do
   F="$SCRATCH/corpus-$N.txt"
   gen_lines "$N" "$F"
-  time_case "drain+first page, ${N} lines" "$BIN" "$F" -10
+  time_case "repeat ingestion+first page (existing spool), ${N} lines" "$BIN" "$F" -10
   EARLY=$(cursor_of "$F" -10)
   time_case "resume EARLY (-10), ${N} lines" "$BIN" -c "$EARLY" -10
   # a late cursor: jump most of the way in via a big byte page, then resume
@@ -76,7 +84,7 @@ done
 
 L="$SCRATCH/longline.txt"
 gen_longline "$L"
-time_case "drain+first page, one 10MB line" "$BIN" "$L" -10
+time_case "repeat ingestion+first page (existing spool), one 10MB line" "$BIN" "$L" -10
 LC=$(cursor_of "$L" --bytes 100)
 [ -n "$LC" ] && time_case "resume (--bytes 4096), one 10MB line" "$BIN" -c "$LC" --bytes 4096
 
