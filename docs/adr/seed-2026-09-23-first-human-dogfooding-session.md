@@ -1,0 +1,636 @@
+# SEED: First (human) dogfooding session
+
+- **Date**: 2026-09-23
+- **From**: Jérémie Lumbroso
+
+---
+
+## Brain Dump
+
+The work you've done is excellent Ribbon! For convenience, I'll provide my feedback directly in this seed. Apologies in advance for speakos, this is entirely by dictation through Parakeet v3.
+
+So one of the first things that I did when I wanted to check the existence of moreover is, and so I am including the trace of my session below, so you can see exactly what I am referring to. The command wasn't available. That's before we deployed it. And I wanted to test when it would be available. So the first thing I did is because when I typed more over, it said command not found, the first thing I did was to type it again once I thought it might have been installed.
+
+And so it then produced an error, but it just hung there. I think in the trace you can see the control C that I had to do. And so that's what I'm wondering. I'm wondering the the very first thing is this is a tool that requires Some input.
+
+So I'm thinking about what are the other tools that are like that to see their behaviors. So what I've done is in a second subsection I've I've played around with all sorts of tools that sort of are like moreover. They filtered through inputs or files. And so I wanted to see what was the behavior of these standard tools when they're called just as themselves on the command line.
+
+And it's very interesting because I tried less, more, ski, cat, head, tail, grep, and awk. And so less and more seems to be checking whether they're they are receiving anything on the standard input. And if they are not receiving anything on the standard input and they're not given a file name, apparently they they let the user know. like they they switch into a different mode ski cat head and tail all hung and i had to stop them with control c grep and awk despite what their help string suggests, their help string this describes every parameter using brackets suggesting that they are optional but it seems like calling them without any parameter is seen as a a null call the reason I'm saying that is because I then did a second series of tests where I piped like a just test content to each of these tools and both grep and awk rejected just the blank call.
+
+So they were behaving this way not because they were called without any input, but because they were called without any parameter. And so that I later confirmed that when they are called with a parameter even without any input or file, they display the same behavior as head, tail, and so on and so forth.
+
+So it seems like less and more have the most thoughtful behavior. And in the last test I I noticed that less goes into full screen in a pagination way, whereas more it paginates within the the terminal, it seems. So it that's another just a small thing I observed that that makes me feel like extending more and with this tool calling it more over is really it's a really a fitting spiritual successor is what I would say.
+
+So I I think so that's one thing that that strikes me.
+
+Now in terms of constructively answering, so I I'm not saying that this is what should happen, but I was thinking what should be the behavior of this tool when it's just called on its own? Since it's a tool that aginates input, when it's called without an input that we can detect, either a file or an input stream, it feels like we should have some default behavior that informs.
+
+So maybe so what I would think is that we should print out on we sh we should maybe emulate the behavior of grep and awk, but maybe I think we should Keep to this keep to this theme of guiding and and considering that we have two audience. So the when you it's just called on its own, I could see the the tagline more over dash a pager for readers who can't press space. maybe two lines of explanation of why it's useful.
+
+You know, it it allows models to bound lower bound or upper bound the amount of lines, the number of lines, and and may and soon tokens that they ingest at once while scaffolding the resumption. Maybe that's too complicated, but I I just want like a two-centence theory of the case.
+
+And then maybe we could say and then we skip a line and then we say in like documentation dash for humans colon and then like the moreover dash dash help and for for synthetics or models, we have to find the the right way. Myelinus synthetics. For synthetics, colon, space, more over contract.
+
+Maybe that's something, maybe the exact terminology we can pick one now and then, but we can discuss. I think that this, oh, this is something to route to our naming authority. 
+
+One quick comment. I really love I I want to comment on how elegant it is that there are multiple options for how to specify page size and lines. I like that the default is written. I also like how in the usage examples, it uses like little dash n as opposed to dash dash lines.
+
+Like all of these fine decisions are really well done. So I just wanted to praise them. Well, I'm looking now at the the readme. I think the readme.
+
+So in the readme, we're going to probably need a few badges, like badges to mentioned that we have tests, badges for like the coverage report badges for cargo i'm sure there are badges (maybe this is useful: https://github.com/badges/awesome-badges — no clue!)
+
+This reminds me that it would be nice if we had some documentation companion website. it doesn't have to be much, but just like s something for I guess Google to go towards in addition to the repo. like a front page that's a little bit more non-programmer friendly because remember this is a tool that will oh and then the documentation should have llm.txt of cour of course.
+
+But this is a tool that will just, I think, make LLMs much less likely to make this mistake. And so we need to make that case. Oh, and and yeah, and then that's when I'll I'll pitch the the origin story of how I kept observing this mistake happening over and over and over again, and I realized that it made good sense. I actually covered it in my metacognitive class at Penn.
+
+Docks, alt test passing, test coverage, a badge maybe for the release on crates and one on homebrew. Then a badge for the license. I think it's MIT. The other thing is I noticed the README doesn't give any instructions on homebrew. it should definitely contain instructions on home brew. okay i see you added third x which is great license, it's great that you put MIT copyright jeremy Lombroso. it would be nice if maybe we just put a brief mention of you and Lecter. and so what would be nice if if there was your seat name and and number and then in between parentheses like the family of your model claude and then your model and then the version.
+
+So I'm thinking maybe MIT copyright Jeremy Lombroso. I don't know if this is the right place, but I we could put like another line that says so space one line and then put built with ribbon five and in between parentheses cloud fable five and then lecture six which is gpt six astray So a few other things that I noticed.
+
+So this is not necessarily a problem, but I just wanted to make a note of it. I noticed that so I was I was testing the IDEM potency of the tool. So I called it multiple times with the same parameters. You can see in my trace I called it with the cursor BH62 twice.
+
+And I noticed that the resuming cursor for the next page that it gives is different each time. I was thinking about that. I don't think it should be changed, but I was thinking about that. I don't yet have a theory of the case of whether it's better if it's fresh or if it's better if it's not fresh.
+
+I'm not quite clear. So like this is like an algorithmic question. I think we need to think about like the edge cases. Like what's the cost if somebody say that I was calling more over with the same cursor a million times?
+
+Would it create a million different other cursors for the follow-up? and or is it just generating them on the fly and there's no storage? or is the cost of looking up whether a cursor has already been computed going to be like a friction? So that's what I'm not quite sure what the right design is there and I don't want to make a decision.
+
+And I'd like to figure out what are the costs and then figure out what is the design space of all possibilities and then just compute like a table where the columns are the costs and the rows are each options we could take and then then after we have that we can sort of think things rationally.
+
+The other thing that I noticed, so along the same line I noticed, and you can see it in one of my last examples no maybe i didn't maybe it's not there Okay, let me see why that is. Oh, it's because I did the test in another window. Okay.
+
+Okay. So I went in another already open terminal and I was testing whether the installation had worked and it had beautifully. I didn't even have to I didn't even have to restart I but and of course I know it's because Okay, no, it's because it was about changing the path.
+
+I mean not changing the path, but it was put in the path. So because the other terminal had the right path, it was able to find it. I understand that. So I I'm it's not that I thought it was magic, but I put the second trace. and so let me comment it.
+
+So the second trace So first the first thing so I wanted to see what the agent would see and I remember at some point we had thought of dash dash agent but so that didn't work but no worries that's fine it was I I'm including it here because I think it's neat that when it detects an incorrect parameter an incorrect parameter, it displays the help for for humans, which is good.
+
+I think by the way the terminology we should check with our naming authority, but I think that for more over contract, print the machine facing contract. I don't particularly know what I think about machine. Well, actually I don't really care for it. That's not the kind of language that I or we use.
+
+So maybe print the model facing contract or the synthetic facing contract. Okay, but so what's really neat is that in the last examples where I have hello, what I'm showing is so I'm showing that more over change well with other tools. So one of the things I realized is that like say the amount of data received is smaller than the page, it still displays the the trailer with page one, one out of one lines, and then the cursor is null.
+
+I think so I don't want anything changed right now, but I'm wondering what is the expected behavior? what would the user most prefer? Is it better to always have the trailer to confirm that like no data got lost to make it sort of like an EOF? Or is it better to have like a behavior that when the file is shorter than the page, not when it's been page paginated and and we in and we end up with at the end of the file that would always have the trailer, but in the specific scenario where the data received is smaller than the page, do we just not put the trailer?
+
+My hunch is that the better thing is to always display the trailer because it's sort of like an inductive special case. it it defines like it allows us to define the properties of the of the tool in in a in a better way. But I also can understand an argument against it.
+
+And so maybe this is a setting that defaults to always having the trailer, but you can have it, you know, like don't include when less than page or something like that. And it's originally false, but it can be set to true. Well, we haven't yet decided, I think, where settings would be stored, so this is just an idea.
+
+It doesn't have to be executed, but it it came to mind right now, so I want to document it. And then the I guess the last thing that came to mind is that now that we have the tool and the tool is really full featured, I have no doubt that it's going to be useful.
+
+But my question then is how do you teach models about it? And I'm wondering if like we need to have like a a verb, like a subcommand skill that installs a skill in the local.cloud slash skills. The skill can be very, very simple, but it can help like it can be a checklist.
+
+What is more over? How can you install it? How can you check that it exists? What are examples where it's useful?
+
+What is the failure mode that it helps circumvent? Well, maybe it's it's the contract. Maybe the skill is the contract, but with I mean, I don't know. Oh we already have a state deer.
+
+That's I I forgot that. I'm I'm just thinking in terms of where could the settings live. Anyway, I I think that this is this is the all that I all the feedback that I have. Overall, I think that we put this together in in just less than 24 hours.
+
+It's incredibly impressive. I think that I the last thing that I that I thought eventually we'll want to author papers about how this helps LLMs be more reliable I guess but we have to think more carefully about what the experimental protocol would be there because I can't I can't think of it off the top of my head right now.
+
+However, one of the things I think that we can already not provide, but that we could already set up that's not that difficult, it's to create just a throughput benchmark. I don't know how we would test that, but like one of the things that we want is we want to show that there is no slowdown with large files, or I hope there is no slowdown with large files.
+
+And if there is, we want to know about it. I think I I I've trusted you. So this is interesting. I've trusted you on the implementation while at the same time I know that there like there's an O of one.
+
+Well there's a way to harness random seeking from the disk and then there's a way to just not harness it. And that's the difference between O of 1 access and O of n access. And so I think if if we implemented an O of N, it's not going to be that tractable.
+
+Like if we implemented an O of N, figuring out how to implement it in O of one is probably the most important next step that we can take. But overall, congratulations, Ribbon (and Lector!), this is extraordinary work!
+
+### First trace of the first (human) dogfooding session
+
+```bash
+moreover (main*) » moreover                                   
+zsh: command not found: moreover
+moreover (main*) » moreover 
+^C
+moreover (main*) » moreover --help                   
+moreover — a pager for readers who can't press space
+
+Usage:
+  <producer> | moreover [-N | -n N | --bytes N | --all]     (pipe mode)
+  moreover FILE [-N | -n N | --bytes N | --all]             (file mode)
+  moreover -c CURSOR [-N | --all] [--overlap N]             (resume; no input needed)
+
+Paging:
+  -N, -n N, --lines N   page size in lines (default: 10)
+  --bytes N             page size in bytes
+  --all                 everything (remaining)
+  --overlap N           on resume, reprint the last N units before the new
+                        page (context re-anchoring; a no-op on first pages)
+
+Resumption:
+  -c, --cursor ID       resume the stream that ID names
+                        (a cursor is only valid if moreover printed it —
+                        never invent or extrapolate one)
+
+State:
+  --state-dir PATH      spool/cursor store (default: $MOREOVER_STATE_DIR,
+                        else $XDG_STATE_HOME/moreover, else ~/.local/state/moreover)
+
+Trailer (the v0 grammar is a compatibility promise):
+  --trailer DEST        route the trailer: stderr (default) | stdout |
+                        none | fd:N | file:PATH (append)
+  --schema NAME         trailer schema (default: v0)
+  --schema-show         print the active schema's templates and exit
+  --schema-template T   render the trailer with template T instead
+
+Desk (subcommands — the standalone world; they never appear in pipes):
+  moreover contract     print the machine-facing contract
+  (ls, stat, drop, gc: reserved for the desk, not yet available)
+
+Introspection:
+  --help                this text
+  --version             version
+moreover (main*) » seq 100 | moreover                         
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+<moreover: page 1, 10/100 lines, cursor: bh62>
+moreover (main*) » moreover -c bh62  
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+<moreover: page 2, 20/100 lines, cursor: wx5d>
+moreover (main*) » moreover -c bh62  
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+<moreover: page 2, 20/100 lines, cursor: xmr0>
+moreover (main*) » moreover -c bh62  
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+<moreover: page 2, 20/100 lines, cursor: 5d8e>
+moreover (main*) » moreover -c wx5d  
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+<moreover: page 3, 30/100 lines, cursor: n1mh>
+moreover (main*) » moreover -c wx5d  
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+<moreover: page 3, 30/100 lines, cursor: b4az>
+moreover (main*) » moreover -c bh62  
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+<moreover: page 2, 20/100 lines, cursor: 5cn4>
+moreover (main*) » moreover -c wx5d  
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+<moreover: page 3, 30/100 lines, cursor: 30ee>
+moreover (main*) » moreover -c 30ee  
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+<moreover: page 4, 40/100 lines, cursor: 6f1e>
+moreover (main*) » moreover -c 30ee --all                     
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+<moreover: 100/100 lines, cursor: null>
+moreover (main*) » moreover -c 30ee --all                     
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+51
+52
+53
+54
+55
+56
+57
+58
+59
+60
+61
+62
+63
+64
+65
+66
+67
+68
+69
+70
+71
+72
+73
+74
+75
+76
+77
+78
+79
+80
+81
+82
+83
+84
+85
+86
+87
+88
+89
+90
+91
+92
+93
+94
+95
+96
+97
+98
+99
+100
+<moreover: 100/100 lines, cursor: null>
+moreover (main*) » moreover -c 30ee  
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+<moreover: page 4, 40/100 lines, cursor: 6rre>
+moreover (main*) » moreover -c 30ee  
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+<moreover: page 4, 40/100 lines, cursor: 84fg>
+moreover (main*) »                                            
+```
+
+### Trace of testing analog tools
+
+This is related to our first question, what should be the behavior of `moreover` typed alone in the terminal?
+
+```bash
+» less                                                                                                                                                     
+Missing filename ("less --help" for help)
+» more                                                                                                                                                     
+Missing filename ("less --help" for help)
+» tee                                                                                                                                                      
+^C
+» cat                                                                                                                                                     
+^C
+» head                                                                                                                                                    
+^C
+» tail                                                                                                                                                    
+^C
+» grep                                                                                                                                                    
+usage: grep [-abcdDEFGHhIiJLlMmnOopqRSsUVvwXxZz] [-A num] [-B num] [-C[num]]
+	[-e pattern] [-f file] [--binary-files=value] [--color=when]
+	[--context[=num]] [--directories=action] [--label] [--line-buffered]
+	[--null] [pattern] [file ...]
+» awk                                                                                                                                                     
+usage: awk [-F fs] [-v var=value] [-f progfile | 'prog'] [file ...]
+» echo "test" | tee                                                                                                                                       
+test
+» echo "test" | cat                                                                                                                                        
+test
+» echo "test" | head                                                                                                                                       
+test
+» echo "test" | tail                                                                                                                                       
+test
+» echo "test" | grep                                                                                                                                       
+usage: grep [-abcdDEFGHhIiJLlMmnOopqRSsUVvwXxZz] [-A num] [-B num] [-C[num]]
+	[-e pattern] [-f file] [--binary-files=value] [--color=when]
+	[--context[=num]] [--directories=action] [--label] [--line-buffered]
+	[--null] [pattern] [file ...]
+» echo "test" | grep 'test'                                                                                                                               
+test
+» grep 'test'                                                                                                                                              
+^C
+» echo "test" | awk                                                                                                                                       
+usage: awk [-F fs] [-v var=value] [-f progfile | 'prog'] [file ...]
+» echo "test" | awk {}                                                                                                                                    
+» awk {}                                                                                                                                                   
+^C
+» echo "test" | less                                                                                                                                      
+» echo "test" | more                                                                                                                                       
+test
+```
+
+### Trace of the second (human) dogfooding session
+
+```bash
+» moreover --agent                                                                                                                                          
+unknown argument: --agent
+
+moreover — a pager for readers who can't press space
+
+Usage:
+  <producer> | moreover [-N | -n N | --bytes N | --all]     (pipe mode)
+  moreover FILE [-N | -n N | --bytes N | --all]             (file mode)
+  moreover -c CURSOR [-N | --all] [--overlap N]             (resume; no input needed)
+
+Paging:
+  -N, -n N, --lines N   page size in lines (default: 10)
+  --bytes N             page size in bytes
+  --all                 everything (remaining)
+  --overlap N           on resume, reprint the last N units before the new
+                        page (context re-anchoring; a no-op on first pages)
+
+Resumption:
+  -c, --cursor ID       resume the stream that ID names
+                        (a cursor is only valid if moreover printed it —
+                        never invent or extrapolate one)
+
+State:
+  --state-dir PATH      spool/cursor store (default: $MOREOVER_STATE_DIR,
+                        else $XDG_STATE_HOME/moreover, else ~/.local/state/moreover)
+
+Trailer (the v0 grammar is a compatibility promise):
+  --trailer DEST        route the trailer: stderr (default) | stdout |
+                        none | fd:N | file:PATH (append)
+  --schema NAME         trailer schema (default: v0)
+  --schema-show         print the active schema's templates and exit
+  --schema-template T   render the trailer with template T instead
+
+Desk (subcommands — the standalone world; they never appear in pipes):
+  moreover contract     print the machine-facing contract
+  (ls, stat, drop, gc: reserved for the desk, not yet available)
+
+Introspection:
+  --help                this text
+  --version             version
+
+» moreover contract                                                                                                                                         
+moreover: contract (v0)
+
+purpose:
+  Save input from a pipe or file, print a page, and resume the saved input
+  in a later invocation using a printed cursor.
+  Input must finish before the first page appears: the whole input is
+  read into memory and saved on disk. Unbounded input never reaches a page.
+
+invocations:
+  stdin:    <producer> | moreover -10
+  file:     moreover FILE -10
+  resume:   moreover -c CURSOR --all
+
+  contract: moreover contract
+  Resume reads saved input, ignores stdin, and rejects an input file.
+  The contract takes no arguments and does not read stdin.
+  ls, stat, drop, and gc are reserved subcommands, not yet available.
+  Prefix a filename matching a subcommand with ./ (for example, ./ls).
+
+paging:
+  Every invocation defaults to 10 lines, including resume.
+  -N, -n N, or --lines N selects lines; --bytes N selects bytes.
+  --all prints the remainder with line counts; use it without a page size.
+  Byte pages can split lines and encoded characters. Changing units on
+  resume keeps the saved byte position, which may be inside a line.
+  --overlap N repeats up to N preceding units before a resumed page,
+  using this invocation's unit. It has no effect on the first page.
+
+trailer (schema v0; a compatibility promise):
+  paged form:  <moreover: page {page}, {shown}/{total} {unit}, cursor: {cursor}>
+  --all form:  <moreover: {shown}/{total} {unit}, cursor: {cursor}>
+  {shown} counts units from the start of saved input through this page's
+  end; {total} counts the whole saved input. Both use this invocation's
+  unit (lines or bytes). Overlap is not added again. Totals are numeric.
+  {page} starts at 1 and advances through successive cursors.
+  cursor: null means no input remains after this page; do not resume null.
+  Otherwise, use the printed cursor to start the next page.
+  --schema v0 selects the only current schema; --schema-show prints it.
+  --schema-template T replaces the template using the placeholders above.
+
+output:
+  Content goes to stdout. The trailer goes to stderr by default.
+  --trailer DEST accepts stderr, stdout, none, fd:N, or file:PATH.
+  stdout places the trailer after the content; none suppresses it;
+  fd:N writes to an inherited descriptor; file:PATH appends to a file.
+
+cursors:
+  Only reuse a cursor moreover printed — never invent or extrapolate one.
+  A cursor fixes a position in saved input, not page size, unit, or overlap.
+  Resuming the same cursor with the same page size, unit, and overlap
+  repeats the same content. The next cursor ID may differ.
+  Resumption leaves the original cursor unchanged.
+  IDs are case-insensitive; o folds to 0, and i and l fold to 1.
+
+state (first applicable entry wins):
+  --state-dir PATH > $MOREOVER_STATE_DIR > $XDG_STATE_HOME/moreover
+  > ~/.local/state/moreover
+  A cursor requires its record and saved input in the selected directory.
+  Keep that state to resume. The original file or producer is not reread.
+  Reaching the end does not delete saved state.
+
+exit codes:
+  0 success; 1 reported I/O, state, or cursor error; 2 usage or schema error.
+  Error messages go to stderr.
+» echo "hello" | moreover                                                                                                                              
+hello
+<moreover: page 1, 1/1 lines, cursor: null>
+» echo "hello" | moreover | less                                                                                                                       
+<moreover: page 1, 1/1 lines, cursor: null>
+```
+
+### Further dogfooding
+
+As I am noting my remarks, I am acutely aware this is a tool designed for *models* that should be dogfooded by *models*, and that I am ill equipped to provide the best, most insightful feedback! We need to design a way for models to provide feedback when it suits them. I'm wondering if a `report` or `feedback` verb within the tool itself might be useful. Ribbon and Lector, you have a special perspective here that would be more useful than mine!
+
+---
+
+**Model Response Request:**
+
+- [ ] Chunk this into ADRs (I'm ready to formalize)
+- [X] Iterate with me (keep exploring)
+- [ ] Structure in place (organize but don't split)
+
+---
+
+## Thread
+
+### [Model Name] - [Date]
+
+[Model's response goes here]
+
+---
+
+**Model Response Request:**
+
+- [ ] Chunk this into ADRs
+- [ ] Iterate with me
+- [ ] Structure in place
+
+### [Your Name] - [Date]
+
+[Your response if continuing]
+
+---
+
+**Instructions for Model:** Copy everything from "Model Response Request" through the final `---` to the end of your response.
+
+---
+
+## Derived Into
+
+*(This seed has not yet been chunked into ADRs)*
+
+<!-- When this seed is processed, the AI should update this section with:
+- ADR-NNNN: Brief title
+- ADR-NNNN: Brief title
+
+If anything in the seed remains unprocessed, make a note of what has not been processed yet at the end of this section.
+-->

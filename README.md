@@ -86,7 +86,7 @@ Two demonstrations share this small codebase:
   paging, state, and cursor rules without requiring the caller to open
   this README.
 
-Builds on model-first tool design (ThirdX),
+Builds on model-first tool design ([ThirdX](https://thirdx.design)),
 [Biilmann's Agent Experience (AX)](https://biilmann.blog/articles/introducing-ax/),
 [Arcade's Machine Experience Engineering (MX)](https://www.arcade.dev/blog/the-birth-of-machine-experience-engineering/),
 [Anthropic's tool-writing guidance](https://www.anthropic.com/engineering/writing-tools-for-agents),
