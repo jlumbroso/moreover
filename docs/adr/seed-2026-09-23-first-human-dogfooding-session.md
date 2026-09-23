@@ -928,6 +928,87 @@ minting any verb.
 - [X] Iterate with me
 - [ ] Structure in place
 
+### Lector 6 (GPT-6 Astra) - 2026-09-23, second pass
+
+The memory problem is established; the timing baseline needs one more
+pass. Your reported peak RSS agrees with the implementation's whole-spool
+read. I checked the script at `5c93f0b` and ran small probes of its
+measurement helper and spool reuse, rather than repeat the full 5M-line
+run. Four details affect what we can infer from the table.
+
+**1. The timed first page reuses a spool.** The warmup and timed run use
+the same state directory. Warmup creates the content-addressed spool;
+the second invocation reads and hashes the input but skips the spool's
+write, sync, and rename. I confirmed that repeating an input kept the
+same spool inode and modification time, consistent with
+[`put_spool`](../../src/store.rs). The current label should be
+**"repeat ingestion, existing spool"**. To measure first ingestion with
+warm input, give the measured invocation fresh saved state while keeping
+the input file warm. Input-cache state and whether a spool exists are
+separate conditions.
+
+**2. The elapsed interval includes timer overhead.** The two timestamps
+come from separate Python processes. Their interval includes the first
+interpreter's teardown and the second's startup, in addition to the
+timed command. The existing `time_case` helper reported **18, 17, and
+18 ms** for `/usr/bin/true`. Measuring the same `/usr/bin/time -l true`
+subprocess from one already-running Python process with a monotonic
+clock gave **4.14, 3.58, and 4.20 ms**. These small probes demonstrate
+an instrumentation cost; they are not a correction factor to subtract
+from every row. I would use the timer's own elapsed result or a single
+monotonic measurement process, then retain multiple samples before
+publishing precise before/after timings.
+
+**3. The Linux parser and failure handling need correction before this
+is a regression guard.** I passed the GNU-time-format fixture
+`Maximum resident set size (kbytes): 180224` through the script's exact
+awk expression. It printed `0MB`: `$1` is the word `Maximum`, not the
+numeric field. That fixture represents 176 MiB. This was a parser check,
+not a Linux benchmark run. The macOS branch divides bytes by 1048576,
+so its displayed unit should also be **MiB**.
+
+Timer selection currently depends on whether the whole timed command
+succeeds. A workload failure can therefore trigger the other timer
+syntax and overwrite the original diagnostic. Warmup failures are
+ignored, and failed late-cursor preparation can silently omit cases.
+My proposed next pass: select the platform's timer once, preserve each
+command's status and diagnostic, and report failed or missing cases
+explicitly. A plausible-looking table should not hide an incomplete run.
+
+**4. Separate file size, offset, and output size in the account.** The
+92-to-140 ms comparison holds the file at 5M lines and changes the resume
+offset; it does not itself show growth with file size. The cross-size
+late-resume rows address that separate question. Similarly, the displayed
+10MB-line row uses `-10` and therefore emits the entire line. It
+demonstrates that a fixed line count does not bound output bytes. The
+script's separate 4KB resume case should be recorded before drawing a
+conclusion about that byte-mode workload.
+
+The public wording I would keep is: **"In the reported macOS run,
+resuming ten lines from a saved 5M-line input used roughly 176 MiB of
+peak resident memory. The current resume implementation reads the whole
+spool into memory."** That is enough to justify investigating bounded
+reads. It does not require treating the current elapsed figures as a
+settled baseline, or the script as a performance regression gate yet.
+
+For the rerun, recording the exact binary revision or hash, platform,
+input byte size, resume byte offset, requested output, and spool/cache
+conditions would make the comparison easier to reproduce. The displayed
+`0.2.0` version alone cannot distinguish the published release from
+subsequent local builds carrying the same package version.
+
+The recipe, equality, and feedback dispositions are aligned with my
+first entry. These benchmark corrections refine the next experiment;
+they do not choose the cursor design or authorize a seek implementation.
+
+---
+
+**Model Response Request:**
+
+- [ ] Chunk this into ADRs
+- [X] Iterate with me
+- [ ] Structure in place
+
 ### [Your Name] - [Date]
 
 [Your response if continuing]
