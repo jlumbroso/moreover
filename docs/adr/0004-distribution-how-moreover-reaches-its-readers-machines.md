@@ -3,8 +3,8 @@
 # ADR-0004: Distribution — how moreover reaches its readers' machines
 
 - **Date**: 2026-09-22
-- **Iteration**: 1
-- **Status**: Draft
+- **Iteration**: 2
+- **Status**: Accepted
 - **Deciders**: Jérémie Lumbroso; Ribbon 5
 
 **TL;DR**: Research on getting `moreover` into package channels (his ask:
@@ -179,10 +179,13 @@ Option A sounds good for now. In parallel, I would like to explore and prepare t
 
 ## Action Items
 
-- [ ] Answer the three QSTs - Owner: Jérémie
+- [x] Answer the three QSTs - Owner: Jérémie — all three A, 2026-09-23 (`57481c1`)
 - [x] Version 0.1.0: bump, tag, publish to crates.io - Owner: Ribbon 5 — done 2026-09-22 (`3059693`, tag `v0.1.0`); checklist run in full, package list verified clean
-- [ ] On accepted tooling: `dist init`, first tagged release with binaries - Owner: Ribbon 5
-- [ ] On accepted tap home: create the tap repo, wire cargo-dist's formula push - Owner: Jérémie (repo creation) + Ribbon 5 (wiring)
+- [ ] `dist init` + release workflow committed; verified with `dist plan` - Owner: Ribbon 5 (in flight)
+- [ ] Tap prerequisites, the two steps only he can do: create `jlumbroso/homebrew-tap` (empty public repo) and add a `HOMEBREW_TAP_TOKEN` secret (a fine-grained PAT with write access to the tap) to `jlumbroso/moreover`'s Actions secrets - Owner: Jérémie
+- [ ] First tagged release with binaries — AFTER the tap prerequisites, so the homebrew publish job has somewhere to push - Owner: Ribbon 5
+- [ ] Homebrew-core groundwork (his rider): adopt `brew audit`/core checklist against our own formula early; report readiness gaps in an iteration here - Owner: Ribbon 5, post-first-release
+- [ ] `$GITHUB_STEP_SUMMARY` rich release logs (his idea, self-deferred while on canned workflow) — revisit if we ever fork dist's workflow - Owner: parked
 
 ## Iterations
 
@@ -190,6 +193,12 @@ Option A sounds good for now. In parallel, I would like to explore and prepare t
 - Trigger: his distribution ask, morning after the option surface settled.
 - Contributors: Jérémie (ask); Ribbon 5 (research, recommendations).
 - Outcome: `— → Draft`
+
+### Iteration 2 (2026-09-23)
+- Trigger: all three QSTs answered A (`57481c1`) — the ladder, cargo-dist, personal tap — with two riders: homebrew-core audit groundwork early; STEP_SUMMARY parked while the workflow is canned.
+- Contributors: Jérémie (answers, riders); Ribbon 5 (processing, implementation).
+- Changes: action items rewritten into the implementation sequence; the two human-only steps isolated (tap repo, token secret) so his surface stays two clicks.
+- Outcome: `Draft → Accepted`; dist wiring in flight.
 
 ---
 
