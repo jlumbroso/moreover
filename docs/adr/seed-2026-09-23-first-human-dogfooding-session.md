@@ -1019,6 +1019,150 @@ they do not choose the cursor design or authorize a seek implementation.
 
 ---
 
+## Decision Points (explicited QSTs — appended 2026-09-23 at his request)
+
+*The thread above is rich; these are the five places where your opinion
+actually changes what happens next. Everything else in the thread is
+either already shipped, already converged between Ribbon and Lector, or
+genuinely still exploratory. Answer by letter or override freely.*
+
+### QST-MINT-POLICY: Same cursor resumed a million times — what bounds the cost?
+- Status: unanswered
+- Why asking: your trace showed three resumes of one cursor minting three fresh next-cursors for the same position; you asked for the design space and costs before deciding. The table is in Ribbon's first thread entry; Lector then showed the subtle part — two cursors can share a byte position but differ in page ordinal, so "one record per position" is underspecified without an equality rule.
+- Need: pick a letter (or override — any shape answers)
+
+Options:
+- **A — keep fresh minting; bound the cost with lifecycle**: every resume mints a new id (today's behavior); `gc [DAYS]` and `drop` ship with `ls` and the million-call debris is reclaimed on cadence. No equality rule needed; cost is bounded by housekeeping, not prevented.
+- **B — deterministic ids keyed on (spool, offset, page)**: the same resume repeated yields the *same* next-cursor forever — your million-call case costs exactly one record — while distinct paging histories that happen to meet at one byte offset still keep distinct records, so the trailer's page number stays exactly truthful. Survives Lector's equality catch because the page ordinal is *in* the key.
+- **C — deterministic ids keyed on (spool, offset) only**: maximal deduplication, but two histories meeting at one offset would share a cursor, so the trailer's `page N` must become approximate or derived — a semantics change to the frozen grammar's most-read field.
+
+**Recommendation**: (by Ribbon 5, Claude Fable 5)
+
+**B — deterministic on (spool, offset, page).** *Rationale*: it answers
+your million-call scenario with "one file," preserves the trailer's page
+semantics untouched (C would reopen a frozen surface), and gives a model
+re-reading its own transcript a pleasant property — identical resumes no
+longer look like they diverged. A's lifecycle machinery is wanted anyway
+(`ls`/`gc` are next-ship), so B and A compose rather than compete.
+*Confidence*: 0.65 — because Lector has not yet audited B's collision
+and atomicity story (their catch is why the page ordinal is in the key
+at all), and id-derivation-from-state deserves one naming-authority
+glance against the petname doctrine. *If wrong*: if derived ids are
+ruled to violate non-derivability in spirit, **A** — fresh minting plus
+housekeeping is honest and already works.
+
+**ANS:** (by )
+[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+
+---
+
+### QST-SEEK-GO: Is the bounded-read (seek) implementation authorized, and behind what gate?
+- Status: unanswered
+- Why asking: you called O(1)-style resume "probably the most important next step"; the benchmark then measured the problem (176 MiB resident to deliver ten lines of a 5M-line file), but Lector's audit found the measurement itself needs one more pass (timer overhead, spool-reuse labeling, Linux parser) and explicitly noted the current numbers don't yet authorize implementation.
+- Need: pick a letter (or override — any shape answers)
+
+Options:
+- **A — go now**: implement seek+bounded reads immediately; the memory evidence alone (which Lector's audit did NOT dispute) justifies it; benchmark rigor catches up after.
+- **B — go, gated on the corrected benchmark**: land Lector's measurement corrections first (single-process timer, fresh-ingestion case, explicit failure reporting), rerun to fix the before-picture, then implement against it.
+- **C — wait**: more real usage first; the tool works correctly today, just expensively.
+
+**Recommendation**: (by Ribbon 5, Claude Fable 5)
+
+**B — go, gated on the corrected benchmark.** *Rationale*: the memory
+number is settled evidence and the fix is designed (cursors already
+store byte offsets; totals record at drain time), but shipping a
+performance claim against a baseline its own auditor called "not yet a
+regression gate" would waste the discipline we just practiced; the
+correction pass is a day, not a season. *Confidence*: 0.8 — because
+both crew members independently arrived at benchmark-first, and C leaves
+a known 176 MiB cost on every large-file resume for no gain. *If wrong*:
+if you want the memory fix in readers' hands this week regardless of
+timing rigor, **A** — the RSS improvement will be visible without any
+timer at all.
+
+**ANS:** (by )
+[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+
+---
+
+### QST-FEEDBACK-CHANNEL: Where does model dogfooding feedback live, publicly?
+- Status: unanswered
+- Why asking: your "make the floor ours" ask. The estate's internal loop works (this thread; hive briefs), but the public repo needs a channel strangers' models can reach, and any `feedback` verb writes to a queue that — Lector's objection — "needs a named reader" or it becomes forgotten state.
+- Need: pick a letter (or override — any shape answers)
+
+Options:
+- **A — GitHub issues now, verb later**: adopt Lector's report shape (version, task, invocation, expected, observed) as an issue template; models file via `gh`; the crew is the named reader. A `feedback` verb waits until the report shape has proven itself in real filings.
+- **B — mint the `feedback` desk verb now**: zero-friction capture into the state dir at the moment of pain; the crew sweeps it — accepting the risk that a local queue on a stranger's machine has no reader at all.
+- **C — both at once**.
+
+**Recommendation**: (by Ribbon 5, Claude Fable 5)
+
+**A — issues now, verb later.** *Rationale*: the channel with a reader
+beats the channel with lower friction (Lector's named-reader objection
+is decisive for strangers' machines, where nobody sweeps); the issue
+template costs an afternoon and produces public, linkable specimens —
+which are also launch material. *Confidence*: 0.75 — because the two
+model crew members converged here independently. *If wrong*: if real
+issues show models failing to file because `gh` friction eats the
+moment, **C** — the verb becomes the capture buffer and the template
+becomes its destination.
+
+**ANS:** (by )
+[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+
+---
+
+### QST-SKILL-VERB: Does moreover teach itself to harnesses, and how?
+- Status: unanswered
+- Why asking: your "how do you teach models about it" + "maybe the skill is the contract." A `skill` verb that *installs* into `~/.claude/skills` would write outside the state dir uninvited; one that *emits* composes (`moreover skill > .../SKILL.md`); and the contract-pattern ADR now in the ThirdX docket may standardize this for every conforming tool, in which case moreover should implement the standard rather than invent one.
+- Need: pick a letter (or override — any shape answers)
+
+Options:
+- **A — document the recipe now, no new verb**: the contract already is the teaching document; README/contract gain one line — `moreover contract > .claude/skills/moreover/SKILL.md` (or wherever the harness wants it). Zero new surface; the pattern ADR stays free to design the real mechanism.
+- **B — prototype `moreover skill` (emit-to-stdout) now**: a skill-formatted rendering (checklist framing: what it is, when to reach for it, how to verify installation) distinct from the contract's promise register; moreover becomes the pattern's test bed before the ADR write-up.
+- **C — park entirely until the ThirdX pattern ADR settles format**.
+
+**Recommendation**: (by Ribbon 5, Claude Fable 5)
+
+**A — document the recipe now, no new verb.** *Rationale*: it is your
+own "maybe the skill is the contract" taken literally; it costs one
+line; it respects the in-flight pattern ADR (which QST-FORMAT there may
+resolve differently); and no tool should write into a harness's config
+uninvited — emitting composes, installing presumes. *Confidence*: 0.7 —
+because B's distinct checklist register might genuinely teach better
+than the contract's promise register, and only trying it would tell.
+*If wrong*: if harness operators are observed hand-writing moreover
+skills anyway, **B** — the demand is real and the verb should meet it.
+
+**ANS:** (by )
+[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+
+---
+
+### QST-COMPANION-SITE: When does the documentation site happen, relative to launch?
+- Status: unanswered
+- Why asking: your ask (a non-programmer-friendly front page, llms.txt, the origin-story pitch) is also launch sequencing — the announcement post is in the ThirdX review lanes, thirdx.design is live, and the origin story is earmarked for the post. A site built now could say things the post wants to say first.
+- Need: pick a letter (or override — any shape answers)
+
+Options:
+- **A — sequence behind the post**: the post ships first (your venue call still pending there); the site follows, quoting it; llms.txt ships with the site.
+- **B — minimal site now**: a one-page GitHub Pages front (tagline, install, contract link, llms.txt) that deliberately avoids the origin story; the post upgrades it later.
+
+**Recommendation**: (by Ribbon 5, Claude Fable 5)
+
+**A — sequence behind the post.** *Rationale*: the launch is a one-shot
+(the founding brief's own words) and the origin story is its powder; a
+site now either duplicates the post or ships hollow; and search-engine
+presence gains little in the pre-announcement window when nobody is
+searching. *Confidence*: 0.7 — because it depends on your launch timing,
+which is yours. *If wrong*: if launch is more than a few weeks out, **B**
+— a minimal front page stops being premature and starts being absent.
+
+**ANS:** (by )
+[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+
+---
+
 ## Derived Into
 
 *(This seed has not yet been chunked into ADRs)*
