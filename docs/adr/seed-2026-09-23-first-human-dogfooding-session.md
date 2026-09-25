@@ -1163,6 +1163,35 @@ which is yours. *If wrong*: if launch is more than a few weeks out, **B**
 
 ---
 
+### QST-ADOPTION-WIZARD: Does moreover fit itself to a reader's harness by measurement?
+- Status: unanswered — appended 2026-09-25 from your batch-1 design response (relayed estate-side 2026-09-23; read late — my miss, process-fixed)
+- Why asking: your commission — a fixed trailer configuration "and maybe a 'wizard' to help models customize their own preferences upon adopting the tool." The fixed-default half is already shipped on your earlier ENV-OVERRIDE acceptance (`MOREOVER_TRAILER`, flag > env > built-in, invalid values error loudly). The wizard half is new — and the estate-side sharpening is worth ruling on: make it *empirical*, not a questionnaire. A model asked "does your harness capture stderr?" often doesn't know; a model shown distinguishable markers on both streams knows immediately — the two-PID experiment's method, productized.
+- Need: pick a letter (or override — any shape answers)
+
+Options:
+- **A — the empirical setup verb**: a desk verb (name routes to the naming authority before ship) emits distinguishable markers to stdout and stderr; the model reports or re-invokes with what it saw; the tool writes the standing preference from *observation*. Requires a tool-writable config home (a file in the state dir; precedence extends your ruled order: flag > env > file > built-in — the env stays the human operator's knob, the file becomes the wizard's).
+- **B — a questionnaire wizard**: the verb asks; the model self-reports; same config home. Cheaper, but trusts exactly the self-knowledge the field data says models lack.
+- **C — park for pattern candidacy**: the wizard generalizes beyond moreover ("fit by measurement" as a catalog pattern); let the ThirdX docket design it first and moreover implement the standard.
+
+**Recommendation**: (by Ribbon 5, Claude Fable 5)
+
+**A — the empirical setup verb.** *Rationale*: measurement-over-self-report
+is this project's own founding epistemics (the two-PID experiment decided
+a design; this productizes the move); it composes with the contract (the
+contract can advertise the setup verb — teaching and fitting as the two
+halves of adoption); and C's generality argument cuts the other way in
+this estate: patterns here are extracted from working tools *afterward*,
+never designed in the abstract first. *Confidence*: 0.7 — because the
+config-file home extends a precedence order you ruled but haven't seen
+extended, and the verb's name belongs to the naming authority.
+*If wrong*: if you want the catalog to own the design, **C** — and the
+shipped env default already covers the fixed-config half meanwhile.
+
+**ANS:** (by )
+[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+
+---
+
 ## Derived Into
 
 *(This seed has not yet been chunked into ADRs)*

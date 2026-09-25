@@ -25,6 +25,7 @@ fn run(state: &PathBuf, args: &[&str], stdin: Option<&[u8]>) -> Output {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
     cmd.args(args)
         .env("MOREOVER_STATE_DIR", state)
+        .env_remove("MOREOVER_TRAILER") // a dev's standing default must not skew tests
         .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -96,6 +97,39 @@ fn shell_redirection_can_merge_or_discard_the_continuation() {
         assert!(String::from_utf8_lossy(&output.stdout)
             .starts_with("l1\nl2\n<moreover: page 1, 2/5 lines, cursor: "));
     }
+}
+
+#[test]
+fn env_sets_the_trailer_default_and_the_flag_beats_it() {
+    // ADR-0003 QST-ENV-OVERRIDE, his acceptance ("the precedence in
+    // Option A is just right"): MOREOVER_TRAILER moves the default; an
+    // explicit --trailer always wins; an invalid env value errors loudly
+    // rather than silently steering the most-seen surface.
+    let state = scratch_dir("envdefault");
+    let with_env = |extra: &[&str], env_val: &str, stdin: &[u8]| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
+        cmd.args(extra)
+            .env("MOREOVER_STATE_DIR", &state)
+            .env("MOREOVER_TRAILER", env_val)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = cmd.spawn().unwrap();
+        child.stdin.as_mut().unwrap().write_all(stdin).unwrap();
+        child.wait_with_output().unwrap()
+    };
+
+    let env_only = with_env(&["-3"], "stdout", &lines(9));
+    assert!(env_only.stderr.is_empty(), "env default must move the trailer off stderr");
+    assert!(String::from_utf8_lossy(&env_only.stdout).contains("<moreover:"));
+
+    let flag_wins = with_env(&["-3", "--trailer", "stderr"], "stdout", &lines(9));
+    assert!(String::from_utf8_lossy(&flag_wins.stderr).starts_with("<moreover:"));
+    assert_eq!(flag_wins.stdout, lines(3), "flag must beat env");
+
+    let invalid = with_env(&["-3"], "sdtout", &lines(9));
+    assert_eq!(invalid.status.code(), Some(2), "typo'd env must error, not fall back");
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains("MOREOVER_TRAILER"));
 }
 
 #[test]

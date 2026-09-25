@@ -46,6 +46,8 @@ State:
 Trailer (the v0 grammar is a compatibility promise):
   --trailer DEST        route the trailer: stderr (default) | stdout |
                         none | fd:N | file:PATH (append)
+                        MOREOVER_TRAILER sets a standing default; an
+                        explicit --trailer always wins (flag > env > stderr)
   --schema NAME         trailer schema (default: v0)
   --schema-show         print the active schema's templates and exit
   --schema-template T   render the trailer with template T instead
@@ -128,6 +130,8 @@ trailer (schema v0; a compatibility promise):
 output:
   Content goes to stdout. The trailer goes to stderr by default.
   --trailer DEST accepts stderr, stdout, none, fd:N, or file:PATH.
+  MOREOVER_TRAILER holds a standing default destination; an explicit
+  --trailer always wins. An invalid value is an error, not a fallback.
   stdout places the trailer after the content; none suppresses it;
   fd:N writes to an inherited descriptor; file:PATH appends to a file.
 
@@ -243,13 +247,24 @@ fn parse_args(argv: &[String]) -> Result<Parsed, String> {
             ));
         }
     }
+    // The standing trailer default (ADR-0003 QST-ENV-OVERRIDE, his
+    // acceptance: "the precedence in Option A is just right" — flag >
+    // env > built-in stderr; the env moves the default, never defeats an
+    // explicit flag). An invalid value is rejected loudly, not guessed
+    // at: invisible state steering the most-seen surface must never fail
+    // silently.
+    let default_trailer = match std::env::var("MOREOVER_TRAILER") {
+        Ok(v) if !v.is_empty() => parse_trailer_dest(&v)
+            .map_err(|e| format!("MOREOVER_TRAILER: {e}"))?,
+        _ => TrailerDest::Stderr,
+    };
     let mut args = Args {
         take: Take::Units(10),
         unit: Unit::Lines,
         cursor: None,
         input_file: None,
         overlap: 0,
-        trailer_dest: TrailerDest::Stderr,
+        trailer_dest: default_trailer,
         state_dir: None,
         schema: "v0".to_string(),
         schema_show: false,
