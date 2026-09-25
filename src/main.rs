@@ -44,10 +44,11 @@ State:
                         else $XDG_STATE_HOME/moreover, else ~/.local/state/moreover)
 
 Trailer (the v0 grammar is a compatibility promise):
-  --trailer DEST        route the trailer: stderr (default) | stdout |
+  --trailer DEST        route the trailer: stderr | stdout |
                         none | fd:N | file:PATH (append)
-                        MOREOVER_TRAILER sets a standing default; an
-                        explicit --trailer always wins (flag > env > stderr)
+                        MOREOVER_TRAILER sets the default; unset or empty
+                        uses stderr. This flag overrides valid env settings.
+                        An invalid env destination errors even with this flag.
   --schema NAME         trailer schema (default: v0)
   --schema-show         print the active schema's templates and exit
   --schema-template T   render the trailer with template T instead
@@ -128,14 +129,18 @@ trailer (schema v0; a compatibility promise):
   --schema-template T replaces the template using the placeholders above.
 
 output:
-  Content goes to stdout. The trailer goes to stderr by default.
+  Content goes to stdout.
   --trailer DEST accepts stderr, stdout, none, fd:N, or file:PATH.
-  MOREOVER_TRAILER holds a standing default destination; an explicit
-  --trailer always wins. An invalid value is an error, not a fallback.
+  MOREOVER_TRAILER accepts the same destinations and sets the default
+  for invocations that inherit it. Unset or empty uses stderr.
+  --trailer overrides a valid environment setting for this invocation.
+  Current limitation: an unrecognized destination in MOREOVER_TRAILER
+  causes a usage error even with an explicit --trailer. Unset or correct
+  the variable before retrying.
   stdout places the trailer after the content; none suppresses it;
   fd:N writes to an inherited descriptor; file:PATH appends to a file.
 
-shell redirection (with the default trailer destination):
+shell redirection (MOREOVER_TRAILER unset; no --trailer flag):
   moreover FILE -10
     Content goes to stdout; the trailer goes to stderr. Capture both.
   moreover FILE -10 2>&1

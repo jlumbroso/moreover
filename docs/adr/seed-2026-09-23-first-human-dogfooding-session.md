@@ -1003,6 +1003,78 @@ they do not choose the cursor design or authorize a seek implementation.
 
 ---
 
+### Lector 6 (GPT-6 Astra; gpt-6-astra) — 2026-09-25
+
+**On QST-ADOPTION-WIZARD: A, with the probe and the saved preference as
+separate steps.** Trying the actual output path is a better starting
+point than asking the reader to characterize its harness. I would first
+prove that the reader can obtain a page and resume it in a fresh call;
+then decide where a preference belongs. This is a recommendation on the
+open question, not an answer on your behalf or a wizard implementation.
+
+**What the probe establishes needs a narrow name.** In this Codex seat,
+a command writing a fresh, distinguishable marker to each of stdout and
+stderr returned both markers in one `output` text field. That establishes
+that both reached this reader in this invocation. It does not establish
+that the harness exposes the streams separately, or that another command
+wrapper, capture mode, or larger output will behave the same way. The
+wizard still depends on the reader reporting what reached it; moreover
+cannot infer that downstream observation from successful writes alone.
+
+Use fresh markers, check command completion, and retain an inconclusive
+result if the reader cannot find either one. A missing marker does not
+by itself distinguish a discarded stream from a failed or truncated
+capture. The report should describe the observation before recommending
+a destination: for example, "both markers reached the reader in this
+call; their original streams were combined in the tool result."
+
+**The acceptance exercise should use moreover.** After the marker probe,
+page a small known input through the recommended route, retrieve the
+printed cursor from the actual result, and resume in a fresh invocation.
+Check the exact remainder and the terminal `cursor: null`. That tests
+whether the reader can use the continuation under the proposed setting;
+recognizing marker text alone does not. The probe can initially return
+the explicit invocation that worked, before persistence is designed.
+
+**A file in the state directory raises a scope question.** The default
+state directory can serve several readers with different harnesses.
+Saving one reader's preference there would change the default for every
+caller using that file. Before saving, the setup result should identify
+which callers it will affect and the effective destination with its
+source. Under the proposed flag > env > file > built-in order, an
+inherited environment value can also make a successfully saved file
+setting ineffective. A repeat run should report that plainly. My
+confidence is high in trying the probe first; persistence needs this
+scope decision before I would recommend shipping it as Option A stands.
+
+**The shipped env default has one precedence mismatch.** An independent
+audit of a binary built from `1df18dd` confirmed that
+`MOREOVER_TRAILER=sdtout` with `-1 --trailer stderr` exits 2 before
+producing a page. The same environment blocks `--help` and `--version`;
+`contract` remains available. A valid `stdout` value is overridden by
+`--trailer stderr`, and an empty value falls back to stderr without a
+flag. The parser validates the environment before reading flags, so the
+contract's original "always wins" promise did not hold for a typo.
+
+I have qualified the help and contract to describe that limitation,
+explained that the default applies to invocations that inherit the
+variable, and made the three shell-redirection examples explicitly
+assume `MOREOVER_TRAILER` is unset. Runtime behavior is unchanged.
+
+My recommended correction is to resolve the environment only when the
+invocation needs its default, after parsing explicit flags. That would
+honor the accepted QST-ENV-OVERRIDE rule without weakening it. A regression
+should set an invalid environment value, supply a valid explicit
+destination, and assert successful page and trailer routing; the existing
+test covers a valid environment override and an invalid value separately,
+so it misses their combination. Help and version should remain usable
+under that environment too. Separately, the direct-command test helpers
+should clear the inherited variable just as the common `run()` helper
+already does, so a developer's standing preference cannot steer unrelated
+redirection and recovery tests.
+
+---
+
 **Model Response Request:**
 
 - [ ] Chunk this into ADRs
