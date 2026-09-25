@@ -47,8 +47,8 @@ Trailer (the v0 grammar is a compatibility promise):
   --trailer DEST        route the trailer: stderr | stdout |
                         none | fd:N | file:PATH (append)
                         MOREOVER_TRAILER sets the default; unset or empty
-                        uses stderr. This flag overrides valid env settings.
-                        An invalid env destination errors even with this flag.
+                        uses stderr. An explicit --trailer always wins —
+                        the variable is only read when no flag is given.
   --schema NAME         trailer schema (default: v0)
   --schema-show         print the active schema's templates and exit
   --schema-template T   render the trailer with template T instead
@@ -133,10 +133,10 @@ output:
   --trailer DEST accepts stderr, stdout, none, fd:N, or file:PATH.
   MOREOVER_TRAILER accepts the same destinations and sets the default
   for invocations that inherit it. Unset or empty uses stderr.
-  --trailer overrides a valid environment setting for this invocation.
-  Current limitation: an unrecognized destination in MOREOVER_TRAILER
-  causes a usage error even with an explicit --trailer. Unset or correct
-  the variable before retrying.
+  An explicit --trailer always wins: the variable is read only when no
+  flag is given. When it is read, an unrecognized destination is a
+  usage error, not a silent fallback. help, version, and contract never
+  read the variable.
   stdout places the trailer after the content; none suppresses it;
   fd:N writes to an inherited descriptor; file:PATH appends to a file.
 
@@ -222,7 +222,7 @@ struct Args {
     cursor: Option<String>,
     input_file: Option<PathBuf>,
     overlap: usize,
-    trailer_dest: TrailerDest,
+    trailer_dest: Option<TrailerDest>,
     state_dir: Option<PathBuf>,
     schema: String,
     schema_show: bool,
@@ -252,24 +252,13 @@ fn parse_args(argv: &[String]) -> Result<Parsed, String> {
             ));
         }
     }
-    // The standing trailer default (ADR-0003 QST-ENV-OVERRIDE, his
-    // acceptance: "the precedence in Option A is just right" — flag >
-    // env > built-in stderr; the env moves the default, never defeats an
-    // explicit flag). An invalid value is rejected loudly, not guessed
-    // at: invisible state steering the most-seen surface must never fail
-    // silently.
-    let default_trailer = match std::env::var("MOREOVER_TRAILER") {
-        Ok(v) if !v.is_empty() => parse_trailer_dest(&v)
-            .map_err(|e| format!("MOREOVER_TRAILER: {e}"))?,
-        _ => TrailerDest::Stderr,
-    };
     let mut args = Args {
         take: Take::Units(10),
         unit: Unit::Lines,
         cursor: None,
         input_file: None,
         overlap: 0,
-        trailer_dest: default_trailer,
+        trailer_dest: None,
         state_dir: None,
         schema: "v0".to_string(),
         schema_show: false,
@@ -301,7 +290,7 @@ fn parse_args(argv: &[String]) -> Result<Parsed, String> {
                 args.overlap = want(a)?.parse().map_err(|_| format!("bad count for {a}"))?;
             }
             "-c" | "--cursor" => args.cursor = Some(want(a)?),
-            "--trailer" => args.trailer_dest = parse_trailer_dest(&want(a)?)?,
+            "--trailer" => args.trailer_dest = Some(parse_trailer_dest(&want(a)?)?),
             "--state-dir" => args.state_dir = Some(PathBuf::from(want(a)?)),
             "--schema" => args.schema = want(a)?,
             "--schema-show" => args.schema_show = true,
@@ -379,6 +368,22 @@ fn run() -> Result<(), (u8, String)> {
         return Ok(());
     }
 
+    // Trailer destination, resolved lazily per the accepted precedence
+    // (flag > env > built-in stderr; ADR-0003 QST-ENV-OVERRIDE): the env
+    // is consulted ONLY when no explicit flag was given, so an explicit
+    // --trailer wins even over a typo'd MOREOVER_TRAILER, and help,
+    // version, and contract never touch the variable at all. (Lector 6's
+    // audit of 1df18dd caught the eager-parse mismatch.) An invalid value
+    // that IS consulted errors loudly, before any content is emitted.
+    let trailer_dest = match &args.trailer_dest {
+        Some(d) => d.clone(),
+        None => match std::env::var("MOREOVER_TRAILER") {
+            Ok(v) if !v.is_empty() => parse_trailer_dest(&v)
+                .map_err(|e| (2, format!("MOREOVER_TRAILER: {e}")))?,
+            _ => TrailerDest::Stderr,
+        },
+    };
+
     let root = args.state_dir.clone().unwrap_or_else(FsStore::default_root);
     let store = FsStore::open(root.clone())
         .map_err(|e| (1, format!("cannot open state dir {}: {e}", root.display())))?;
@@ -444,7 +449,7 @@ fn run() -> Result<(), (u8, String)> {
     // The trailer is the interface; stderr is its default home by ruling,
     // and --trailer moves it for harnesses that capture only stdout.
     let line = render_with(schema, args.schema_template.as_deref(), &trailer);
-    emit_trailer(&args.trailer_dest, &line).map_err(|e| (1, format!("cannot emit trailer: {e}")))?;
+    emit_trailer(&trailer_dest, &line).map_err(|e| (1, format!("cannot emit trailer: {e}")))?;
     Ok(())
 }
 

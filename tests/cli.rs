@@ -73,7 +73,7 @@ fn shell_redirection_can_merge_or_discard_the_continuation() {
             .args(["-c", script, "moreover-redirection-test"])
             .arg(env!("CARGO_BIN_EXE_moreover"))
             .arg(&doc)
-            .env("MOREOVER_STATE_DIR", &state)
+            .env("MOREOVER_STATE_DIR", &state).env_remove("MOREOVER_TRAILER")
             .stdin(Stdio::null())
             .output()
             .unwrap()
@@ -109,7 +109,7 @@ fn env_sets_the_trailer_default_and_the_flag_beats_it() {
     let with_env = |extra: &[&str], env_val: &str, stdin: &[u8]| {
         let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
         cmd.args(extra)
-            .env("MOREOVER_STATE_DIR", &state)
+            .env("MOREOVER_STATE_DIR", &state).env_remove("MOREOVER_TRAILER")
             .env("MOREOVER_TRAILER", env_val)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -130,6 +130,33 @@ fn env_sets_the_trailer_default_and_the_flag_beats_it() {
     let invalid = with_env(&["-3"], "sdtout", &lines(9));
     assert_eq!(invalid.status.code(), Some(2), "typo'd env must error, not fall back");
     assert!(String::from_utf8_lossy(&invalid.stderr).contains("MOREOVER_TRAILER"));
+
+    // Regression (Lector 6's audit of 1df18dd): the env was parsed
+    // eagerly, so a typo'd MOREOVER_TRAILER broke even invocations that
+    // carried an explicit --trailer — and blocked --help and --version.
+    // The flag must win over an INVALID env too (the variable is only
+    // read when no flag is given), and the introspection surfaces must
+    // never touch it.
+    let flag_over_bad_env = with_env(&["-3", "--trailer", "stderr"], "sdtout", &lines(9));
+    assert!(flag_over_bad_env.status.success(), "explicit flag must beat a typo'd env");
+    assert!(String::from_utf8_lossy(&flag_over_bad_env.stderr).starts_with("<moreover:"));
+    assert_eq!(flag_over_bad_env.stdout, lines(3));
+
+    for introspection in [&["--help"][..], &["--version"][..], &["contract"][..]] {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
+        cmd.args(introspection)
+            .env("MOREOVER_STATE_DIR", &state).env_remove("MOREOVER_TRAILER")
+            .env("MOREOVER_TRAILER", "sdtout")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let out = cmd.output().unwrap();
+        assert!(
+            out.status.success(),
+            "{introspection:?} must work under a broken env: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
 }
 
 #[test]
@@ -243,7 +270,7 @@ fn bare_call_on_a_terminal_guides_instead_of_hanging() {
     let state = scratch_dir("nullcall");
     let out = Command::new("script")
         .args(["-q", "/dev/null", env!("CARGO_BIN_EXE_moreover")])
-        .env("MOREOVER_STATE_DIR", &state)
+        .env("MOREOVER_STATE_DIR", &state).env_remove("MOREOVER_TRAILER")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -294,7 +321,7 @@ fn c_last_resumes_this_desks_newest_cursor_only() {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
     cmd.args([doc.to_str().unwrap(), "-3"])
         .current_dir(&desk_a)
-        .env("MOREOVER_STATE_DIR", &state)
+        .env("MOREOVER_STATE_DIR", &state).env_remove("MOREOVER_TRAILER")
         .stdout(Stdio::null())
         .stderr(Stdio::null());
     assert!(cmd.status().unwrap().success());
@@ -303,7 +330,7 @@ fn c_last_resumes_this_desks_newest_cursor_only() {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
     cmd.args(["-c", "last", "-3"])
         .current_dir(&desk_a)
-        .env("MOREOVER_STATE_DIR", &state)
+        .env("MOREOVER_STATE_DIR", &state).env_remove("MOREOVER_TRAILER")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let out = cmd.output().unwrap();
@@ -314,7 +341,7 @@ fn c_last_resumes_this_desks_newest_cursor_only() {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
     cmd.args(["-c", "last", "-3"])
         .current_dir(&desk_b)
-        .env("MOREOVER_STATE_DIR", &state)
+        .env("MOREOVER_STATE_DIR", &state).env_remove("MOREOVER_TRAILER")
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     let out = cmd.output().unwrap();
@@ -338,7 +365,7 @@ fn c_last_remains_selectable_after_exhaustion_and_complete_new_input() {
         Command::new(env!("CARGO_BIN_EXE_moreover"))
             .args(args)
             .current_dir(&desk)
-            .env("MOREOVER_STATE_DIR", &state)
+            .env("MOREOVER_STATE_DIR", &state).env_remove("MOREOVER_TRAILER")
             .stdin(Stdio::null())
             .output()
             .unwrap()
