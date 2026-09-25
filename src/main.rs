@@ -46,9 +46,9 @@ State:
 Trailer (the v0 grammar is a compatibility promise):
   --trailer DEST        route the trailer: stderr | stdout |
                         none | fd:N | file:PATH (append)
-                        MOREOVER_TRAILER sets the default; unset or empty
-                        uses stderr. An explicit --trailer always wins —
-                        the variable is only read when no flag is given.
+                        This flag overrides MOREOVER_TRAILER for this call.
+                        Without this flag, MOREOVER_TRAILER sets the
+                        default; unset or empty uses stderr.
   --schema NAME         trailer schema (default: v0)
   --schema-show         print the active schema's templates and exit
   --schema-template T   render the trailer with template T instead
@@ -131,12 +131,14 @@ trailer (schema v0; a compatibility promise):
 output:
   Content goes to stdout.
   --trailer DEST accepts stderr, stdout, none, fd:N, or file:PATH.
+  Destination precedence: --trailer > MOREOVER_TRAILER > stderr.
   MOREOVER_TRAILER accepts the same destinations and sets the default
   for invocations that inherit it. Unset or empty uses stderr.
-  An explicit --trailer always wins: the variable is read only when no
-  flag is given. When it is read, an unrecognized destination is a
-  usage error, not a silent fallback. help, version, and contract never
-  read the variable.
+  An explicit --trailer overrides even an invalid environment value.
+  If used as the default, an unrecognized environment destination causes
+  a usage error before any content is emitted.
+  The --help, --version, and --schema-show flags and the contract
+  subcommand ignore MOREOVER_TRAILER.
   stdout places the trailer after the content; none suppresses it;
   fd:N writes to an inherited descriptor; file:PATH appends to a file.
 
