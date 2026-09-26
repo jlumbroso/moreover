@@ -1099,7 +1099,7 @@ either already shipped, already converged between Ribbon and Lector, or
 genuinely still exploratory. Answer by letter or override freely.*
 
 ### QST-MINT-POLICY: Same cursor resumed a million times — what bounds the cost?
-- Status: unanswered
+- Status: answered
 - Why asking: your trace showed three resumes of one cursor minting three fresh next-cursors for the same position; you asked for the design space and costs before deciding. The table is in Ribbon's first thread entry; Lector then showed the subtle part — two cursors can share a byte position but differ in page ordinal, so "one record per position" is underspecified without an equality rule.
 - Need: pick a letter (or override — any shape answers)
 
@@ -1123,13 +1123,13 @@ glance against the petname doctrine. *If wrong*: if derived ids are
 ruled to violate non-derivability in spirit, **A** — fresh minting plus
 housekeeping is honest and already works.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Yes, this is excellent. I am not sure I fully understand B's design (in terms of files, contents, updates, etc.) — the table didn't provide sufficient details, but I'll assume you know what you are talking about here and not micromanage. Given your useful question—"is there ever a scenario where we want fresh minting (i.e., Option A)"—I don't yet know: This is something that models will have determine for themselves, since the point of this tool is to match model intrinsic preferences. For this reason, I concur that I think the safest approach is to **create switchable modes**, default to Option B (which makes most sense to us now) while allowing a switch to Option A — and like all of our preferences should probably both come in the form of a temporary flag, and a settings ability to change the default. (If the default can be changed, the flags need to be... assertive as opposed to toggles, i.e., instead of having a flag that modifies the existing preference, the flags should be assertions of a specific mode, that way they are useful no matter what the default is.)
 
 ---
 
 ### QST-SEEK-GO: Is the bounded-read (seek) implementation authorized, and behind what gate?
-- Status: unanswered
+- Status: answered
 - Why asking: you called O(1)-style resume "probably the most important next step"; the benchmark then measured the problem (176 MiB resident to deliver ten lines of a 5M-line file), but Lector's audit found the measurement itself needs one more pass (timer overhead, spool-reuse labeling, Linux parser) and explicitly noted the current numbers don't yet authorize implementation.
 - Need: pick a letter (or override — any shape answers)
 
@@ -1152,13 +1152,13 @@ if you want the memory fix in readers' hands this week regardless of
 timing rigor, **A** — the RSS improvement will be visible without any
 timer at all.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Yes, let's go with Option B: I completely agree with you, we are aiming to make a performance improvement, and we have a benchmark. The benchmark isn't yet reliable. If we make the change of performance improvement without fixing our benchmark, we are depriving ourselves of the toolchain that would validate or falsify our notion that the bounded-read implementation is a better idea. This is definitely information we want! If we implement our idea without being able to vet it, we're doing motivated reasoning! That's not good/acceptable.
 
 ---
 
 ### QST-FEEDBACK-CHANNEL: Where does model dogfooding feedback live, publicly?
-- Status: unanswered
+- Status: answered
 - Why asking: your "make the floor ours" ask. The estate's internal loop works (this thread; hive briefs), but the public repo needs a channel strangers' models can reach, and any `feedback` verb writes to a queue that — Lector's objection — "needs a named reader" or it becomes forgotten state.
 - Need: pick a letter (or override — any shape answers)
 
@@ -1179,13 +1179,29 @@ issues show models failing to file because `gh` friction eats the
 moment, **C** — the verb becomes the capture buffer and the template
 becomes its destination.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Option C, but let's pause on this and consult more broadly. This seems like an important subsystem. Indeed, we have a tremendous amount of prior art here: You should consult with Gleaner of VSCode ADR Manager of ADRs4AI. They designed the `reports.jsonl` standard that we've expanded to several tools. This is a ThirdX design with several elements:
+
+1. an automated, streamlined reporting tool at the point-of-contact (in the extension, I can click "Report" in many aspects of the interface, and type in my thoughts about a problem; the toolchain captures every information necessary to understand my context, like what I am reporting on, a screenshot, the HTML dump, the contents of the files being visualized, etc.);
+
+2. an automated, streamlined monitoring tool at the point-of-receipt: Gleaner is woken up any time a new `reports.jsonl` entry is added on any of the hives they have registered to follow;
+
+3. an automated "service agreement" — the monitorer, in this case Gleaner, triages every incoming requests and either addresses the issue themselves, or issues a brief to the appropriate seat on the hive.
+
+We've used this on most of our tools in some form, and `pneumatic` has some of the most advanced version of this protocol.
+
+My hunch is that, Hora style, we've been putting together a stable intermediate form, and now is coming time to package it as a concept — likely a key concept of ThirdX (something like: "_Models are the best placed to report issues affecting them, so creating a functional reporting pipeline models can use is an important principle of ThirdX design_"). It would be more useful if this were somewhat of a "standard" — in the same way that we created the `contract` standard, I think this could be its own verb, like `report` or `feedback`. Maybe both, and they each have a different semantic (`report` breaking problem or problem; `feedback` enhancement suggestion).
+
+The reason I am bringing this up now is that, part of what we can gain here, is that we decouple the input from the output. Right now, since most of the development of this ecosystem has been happening on my local machine, local JSONL files have been sufficient — and maybe that's a protocol that can also be expanded to public GitHub repos. But I think carefully designing a "standard" for these to be interchanged on existing public datastores, like GitHub Issues, is a brilliant idea. What would be great is if we spent some time creating a barrier of abstraction such that, from GitHub Issues is just one possible output among many, and that, from the point of view of the models, the storage location has no impact on the interfacing.
+
+I think that rather than reinvent the wheel every time, this could be a dedicated protocol/library/standard — and maybe its own embeddable library (in Python, TypeScript, Rust, etc.). Can you forward this to the naming authority and to the ThirdX HQ?
+
+(Re: specifically your point about `gh`, that could be used on the backend when filing to GitHub Issues, to take advantage of persistent login, as one of several backends.)
 
 ---
 
 ### QST-SKILL-VERB: Does moreover teach itself to harnesses, and how?
-- Status: unanswered
+- Status: answered
 - Why asking: your "how do you teach models about it" + "maybe the skill is the contract." A `skill` verb that *installs* into `~/.claude/skills` would write outside the state dir uninvited; one that *emits* composes (`moreover skill > .../SKILL.md`); and the contract-pattern ADR now in the ThirdX docket may standardize this for every conforming tool, in which case moreover should implement the standard rather than invent one.
 - Need: pick a letter (or override — any shape answers)
 
@@ -1206,13 +1222,13 @@ than the contract's promise register, and only trying it would tell.
 *If wrong*: if harness operators are observed hand-writing moreover
 skills anyway, **B** — the demand is real and the verb should meet it.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Agreed with Option A, it's a good scaffolding while we think about this. It's also helping provide more definition to what `contract` is, it helps document the concept of `contract`. This could become a flag of `contract`, like `--save-to-skills` for instance (just a thought! not an order).
 
 ---
 
 ### QST-COMPANION-SITE: When does the documentation site happen, relative to launch?
-- Status: unanswered
+- Status: answered
 - Why asking: your ask (a non-programmer-friendly front page, llms.txt, the origin-story pitch) is also launch sequencing — the announcement post is in the ThirdX review lanes, thirdx.design is live, and the origin story is earmarked for the post. A site built now could say things the post wants to say first.
 - Need: pick a letter (or override — any shape answers)
 
@@ -1230,13 +1246,13 @@ searching. *Confidence*: 0.7 — because it depends on your launch timing,
 which is yours. *If wrong*: if launch is more than a few weeks out, **B**
 — a minimal front page stops being premature and starts being absent.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Option B, I think about it the other way: The (unlinked, unannounced, unreferenced) minimal site can serve as a sandbox to explore some minor copy-editing to prepare how to announce this for a real launch. (And furthermore the goal of having a post on this in ThirdX is not to announce it necessarily—though we can certainly do that, and now that you've brought it up it sounds judicious. But originally my intention was simply to aggregate case studies for ThirdX to make the overall project more legible. It was not to harness the [currently non-existent] viewership of ThirdX to a subproject. I think your call to avoid the origin story is good, but it shouldn't stop us from making the purpose clear (i.e., models need to take a peek and they often forget to read the rest).
 
 ---
 
 ### QST-ADOPTION-WIZARD: Does moreover fit itself to a reader's harness by measurement?
-- Status: unanswered — appended 2026-09-25 from your batch-1 design response (relayed estate-side 2026-09-23; read late — my miss, process-fixed)
+- Status: answered
 - Why asking: your commission — a fixed trailer configuration "and maybe a 'wizard' to help models customize their own preferences upon adopting the tool." The fixed-default half is already shipped on your earlier ENV-OVERRIDE acceptance (`MOREOVER_TRAILER`, flag > env > built-in, invalid values error loudly). The wizard half is new — and the estate-side sharpening is worth ruling on: make it *empirical*, not a questionnaire. A model asked "does your harness capture stderr?" often doesn't know; a model shown distinguishable markers on both streams knows immediately — the two-PID experiment's method, productized.
 - Need: pick a letter (or override — any shape answers)
 
@@ -1259,8 +1275,8 @@ extended, and the verb's name belongs to the naming authority.
 *If wrong*: if you want the catalog to own the design, **C** — and the
 shipped env default already covers the fixed-config half meanwhile.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Option A, definitely! And I would highlight that your idea, a dialogic/dialectic wizard that involves calibration procedures, is exactly what I had in mind. The closest analogy I have is when in video games, especially horror/thriller games that happen in the dark, where shades of dark are important to atmospheric perception, they will often start by having the player calibrate levels of contrast or luminosity (or both) against some samples. This is a pattern that we've already used to adjust the exact colors of the fonts and backgrounds in the Companion harness.
 
 ---
 
