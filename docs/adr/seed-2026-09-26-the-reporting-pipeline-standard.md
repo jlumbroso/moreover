@@ -127,7 +127,7 @@ assert destinations, never deltas."**
 flagged prominently at the striker's own request:
 
 ### QST-VERB-RECUT: One filing verb with kinds, or the report/feedback pair?
-- Status: unanswered — the re-cut is the naming authority's strike (credit where the knife-work is due), made at your confirm-or-strike invitation; your filing instinct outranks their symmetry (their own words)
+- Status: answered
 - Why asking: your proposal was two verbs with a semantic split (report = breakage, feedback = enhancement). The strike re-cuts it one level up rather than confirming or killing it.
 - Need: pick a letter (or override — any shape answers)
 
@@ -154,8 +154,8 @@ early standard usage shows optional kind producing unusable filings,
 tighten to required-kind (A) — the record shape doesn't change, only
 the requiredness bit.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by Jérémie Lumbroso)
+Option C sounds great!
 
 ---
 
@@ -208,6 +208,68 @@ the estate's register with Gleaner's credit: the classification-cost
 asymmetry, and filed-label vs. ruled-label as lifecycle law). The
 design pass opens on your letters: QST-VERB-RECUT above, and the
 specimen-quotes gate.*
+
+---
+
+### Jérémie Lumbroso - 2026-09-26
+
+One aspect of this that is coming to mind, to [quote myself reporting this to Anthropic](https://github.com/anthropics/claude-code/issues/92519):
+
+> ### Preflight Checklist
+> * [x]  I have searched [existing requests](https://github.com/anthropics/claude-code/issues?q=is%3Aissue%20label%3Aenhancement) and this feature hasn't been requested yet[x]  This is a single feature request (not multiple features)
+> 
+> ### Problem Statement
+> The new structured `/feedback` / feedback-submission format (labeled fields: observed behavior, the user's own words, repro steps, named evidence) is a substantive improvement over a scalar rating, and the reason is worth stating precisely, since it bears directly on the gap below.
+> 
+> A scalar rating (1-3 stars, thumbs up/down) is unfalsifiable: it asserts no checkable claim about the interaction — nothing about what happened, what was expected, or what would make it wrong. This has three compounding consequences:
+> 
+> 1. **No inter-rater reliability.** Two raters observing the same output are not disagreeing about a shared fact, because the scale contains no fact to agree or disagree about; scores do not converge toward anything measurable.
+> 2. **Selection bias.** Users experiencing friction rate substantially more often than satisfied users, so the aggregate tracks the distribution of frustration, not the distribution of quality.
+> 3. **Unaccountable attribution.** Most raters cannot distinguish a genuine model error from a tool failure, an underspecified request, or a defensible judgment call they simply disagreed with. Because the score is unfalsifiable, that attribution can never be checked or contested after the fact.
+> 
+> The combined effect is an information-laundering mechanism: a signal with no verifiable epistemic content is nonetheless aggregated, reported, and acted on downstream as though it were evidence of model quality. The structured feedback format avoids this by construction — every field is a claim that could in principle be shown false, which is what makes it usable as evidence rather than noise.
+> 
+> What hasn't caught up is the context-attachment control. Today it is last-session / 24h / 7d / none (per [#89874](https://github.com/anthropics/claude-code/issues/89874)) — all-or-nothing. For a user working across confidential codebases at high volume, "none" discards exactly the context that makes the structured format actionable, while "last session" can mean hours of unrelated material archived to substantiate one narrow report.
+> 
+> ### Proposed Solution
+> Let the user scope the attached context precisely rather than choosing all-or-nothing:
+> 
+> * A "last N turns" option (a number, not a time window), so exactly the turns relevant to the report are attached.
+> * A preview-and-redact step before submission, so specific lines/turns can be stripped without discarding the whole transcript.
+> 
+> This is not purely a privacy request: the current binary choice is itself suppressing feedback volume from the users best positioned to supply well-evidenced reports.
+> 
+> ### Alternative Solutions
+> The existing "none" option ([#89874](https://github.com/anthropics/claude-code/issues/89874)) is a valid but blunt fallback — it solves the privacy problem by discarding exactly the evidence that makes a structured report actionable. It's a workaround, not a fix for the underlying scoping gap.
+> 
+> ### Priority
+> High - Significant impact on productivity
+> 
+> ### Feature Category
+> CLI commands and flags
+> 
+> ### Use Case Example
+> 1. I'm 90 minutes into a long working session across several unrelated tasks in a confidential codebase.
+> 2. Near the end, I hit a specific, well-defined bug in a CLI permission classifier.
+> 3. I want to file a precise, evidence-backed report on that one issue — but the only context-attachment options are "last session" (which includes 90 minutes of unrelated confidential work) or "none" (which discards the very evidence the structured format is designed to carry).
+> 4. With "last N turns," I could attach just the handful of turns that actually demonstrate the bug.
+> 
+> ### Additional Context
+> Related: [#89874](https://github.com/anthropics/claude-code/issues/89874) (session-history-optional request), [#89130](https://github.com/anthropics/claude-code/issues/89130) (unnecessary git repo data attached to feedback). This issue asks for precision _within_ the "with context" branch, rather than only an on/off toggle.
+> 
+> Companion issue, filed alongside this one: a request to let users view/track feedback they've submitted (see linked issue below once filed).
+> 
+> **If this is addressed, I will make it worth your while: once my privacy needs are met, I commit to filing feedback daily, at the highest volume I can sustain.**
+
+In the VSCode ADR Manager extension, the reporting pipeline is particularly useful because it is built to embed a large amount of information, like the HTML make-up of the panel and screenshot of it, that helps equip the receiving model with enough context to be as well-informed about the context of the user as the user themselves. When I am working internally, there's no privacy concerns, but when expecting to be receiving feedback from other users and hives that are external, it is important to provide not just context embedding convenience to improve the quality of the reporting, but also granular control to the user. This may not be something that we need to think about immediately in the context of `moreover`, however for the broader discussion, it's probably useful to standardize.
+
+---
+
+**Model Response Request:**
+
+- [ ] Chunk this into ADRs
+- [X] Iterate with me
+- [ ] Structure in place
 
 ---
 
