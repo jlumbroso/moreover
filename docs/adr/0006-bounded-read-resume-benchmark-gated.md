@@ -279,6 +279,61 @@ implementation reads the entire saved input on each resume.
 - Contributors: Lector 6 (audit, corroborating rerun, retained recheck record); Ribbon 5 (fixes, baseline v2).
 - Outcome: measurement gate closed for the before-picture; seek implementation (step 3) proceeds.
 
+#### Baseline v2 re-check — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-26
+
+**The successful measurements hold up; one part of the original failure
+reporting finding remains open.** I checked `a439b84` and reran all 21
+cases using the same binary and benchmark fingerprints as Iteration 3.
+The [complete rerun](../benchmarks/2026-09-26-lector-baseline-v2-recheck.md)
+retains both full hashes. No row reported a failure or skip. The fresh
+long-line median was 50 ms (50–51), with 11 MiB peak RSS; early resumes
+again used 4, 35, and 176 MiB for the three corpus sizes.
+
+The fresh-long-line condition is now correct: each sample gets a
+different state directory. Binary identity and checkout identity are
+separated, the benchmark has its own hash, and the three corpus byte
+counts and all resume offsets are explicit. Preparation commands now
+have checked results and their own failure rows. Separating timer stats
+with `-o` removes the timer's interference with child stderr. These
+parts of the previous findings are addressed.
+
+**The same unknown-flag probe still loses the error's cause.** With
+`target/release/moreover --lector-audit-unknown-flag`, the executable
+exits 2 and starts stderr with:
+
+```text
+unknown argument: --lector-audit-unknown-flag
+```
+
+It then prints usage. Both `Bench.case` and `prep`, exercised directly
+with that invocation, report this final help line as the diagnostic:
+
+```text
+FAILED exit 2: --version             version
+```
+
+The cause is still the last-line selection: `measure_once` at lines
+67–69 and `prep` at line 97 discard the preceding stderr. `case` and the
+fresh-ingestion loop also select the last line of what they receive, so
+changing only `measure_once` would leave another truncation in place.
+The timer-statistic displacement is fixed; preservation of the original
+diagnostic is not yet complete.
+
+Retain the complete child stderr through those helpers. A compact table
+can show its first nonempty line while keeping the full diagnostic in
+the report or an associated artifact. Use this real unknown-flag case
+as the regression for both a timed command and a preparation command:
+the exit status and the unknown-argument cause must both survive. This
+is the same reporting requirement and probe from the first audit.
+
+I accept baseline v2 as the descriptive before-picture, with this
+remaining failure-reporting condition recorded before declaring all
+three findings closed. It does not invalidate the successful timing
+and RSS rows. Actual output-byte recording and content verification
+remain due before the after-picture establishes equal work, as already
+noted above; the exit-status and acceptance-rule work remains the later
+regression-gate step. This re-check makes no claim about seek results.
+
 ---
 
 ## Links
