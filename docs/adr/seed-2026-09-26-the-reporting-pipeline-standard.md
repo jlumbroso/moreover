@@ -72,7 +72,7 @@ like an important subsystem." Source of record:
 
 ## The research threads (staked 2026-09-26, all three dispatched)
 
-1. **The prior-art dossier** → Gleaner (the `reports.jsonl` designer):
+1. **The prior-art dossier** → Gleaner (designer of the standing ledger — file of record `errors.jsonl`; his dictation's "reports.jsonl" kept verbatim above):
    schema, the point-of-contact capture design, the wake-on-append
    monitoring protocol, the service-agreement triage pattern, and where
    pneumatic's "most advanced version" extends it. Requested as a
@@ -132,9 +132,9 @@ flagged prominently at the striker's own request:
 - Need: pick a letter (or override — any shape answers)
 
 Options:
-- **A — the naming authority's re-cut: one convention verb, `feedback`, with `--kind bug|wish`**: verbs split on *contract*, tags on *vocabulary* — and both filings share one contract (capture → record → route), so two verbs would gate filing behind a classification decision at the reader's moment of frustration. Your two words both survive as *organs*: `feedback` = reader→maintainer speech (the convention, `contract`'s sibling); `report` = tool→telemetry record (the standing `reports.jsonl` organ, untouched).
+- **A — the naming authority's re-cut: one convention verb, `feedback`, with `--kind bug|wish`**: verbs split on *contract*, tags on *vocabulary* — and both filings share one contract (capture → record → route), so two verbs would gate filing behind a classification decision at the reader's moment of frustration. Your two words both survive as *organs*: `feedback` = reader→maintainer speech (the convention, `contract`'s sibling); `report` = tool→telemetry record (the standing `errors.jsonl` organ, untouched).
 - **B — your original pair**: `report` and `feedback` as sibling verbs with your semantic split; the reader classifies at filing time; the two registers get first-class surfaces.
-- **C — the census cut** *(added same-day from Gleaner 5's field return)*: one verb `feedback` with `--kind bug|wish|note` — kind **optional and advisory** for humans, **required** for machine filers, and the *authoritative* kind set by triage as an append-only event. Grounded in a hand-labeled census of 106 distinct filings: ~69% fit bug|wish cleanly, 31% don't (questions, exhibits, follow-ups, praise, multi-kind), and about a tenth of "bugs" arrive phrased as questions — filing-time classification is largely theater for humans and cheap for models (the census's 8 model filings were its cleanest).
+- **C — the census cut** *(added same-day from Gleaner 5's field return)*: one verb `feedback` with `--kind bug|wish|note` — kind **optional and advisory** for humans, **required** for machine filers, and the *authoritative* kind set by triage as an append-only event. Grounded in a hand-labeled census of 106 distinct filings (single annotator, ±3 — a census by one person, not a population measurement): ~69% fit bug|wish cleanly, 31% don't (questions, exhibits, follow-ups, praise, multi-kind), and about one in six of the bug-labeled filings arrive phrased as questions — filing-time classification is largely theater for humans and cheap for models (the census's 8 model filings were its cleanest).
 
 **Recommendation**: (by Ribbon 5, Claude Fable 5 — revised same-day;
 **this walks forward from A to C** on Gleaner 5's census, which fired
@@ -187,12 +187,21 @@ specimens are his own words from private ledgers):
 
 ---
 
+**GATE (blocking, not advisory)**: no verbatim specimen from the census
+— they are Jérémie's own words from private ledgers — appears in any
+public standard material until his explicit confirm lands in this
+seed's thread. Counts and shapes only, until then. (Gleaner's guard,
+elevated to a gate at the naming authority's instruction.)
+
 *Remaining threads: Gleaner's dossier and opinion — returned (above);
-the ThirdX candidacy (with Cartulary, as their ADR-0007). The design
-pass opens on your letters: QST-VERB-RECUT above, and the
-verbatim-quotes gate (may Gleaner's specimen quotes — your own words
-from private ledgers — print in public standard material? counts and
-shapes are already public here by their gate).*
+the ThirdX candidacy (with Cartulary, as their ADR-0007). The naming
+authority has since endorsed option C from the naming desk (both
+recommendations now aligned; `note` ruled the right third word — an
+affirmative neutral, not a residue-bin — and two census atoms entered
+the estate's register with Gleaner's credit: the classification-cost
+asymmetry, and filed-label vs. ruled-label as lifecycle law). The
+design pass opens on your letters: QST-VERB-RECUT above, and the
+specimen-quotes gate.*
 
 ---
 
