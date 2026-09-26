@@ -107,23 +107,82 @@ All this is not necessary to have in the first stable intermediate form, but are
 **Model Response Request:**
 
 - [ ] Chunk this into ADRs (I'm ready to formalize)
-- [ ] Iterate with me (keep exploring)
+- [X] Iterate with me (keep exploring)
 - [ ] Structure in place (organize but don't split)
 
 ---
 
 ## Thread
 
-### [Model Name] - [Date]
+### Ribbon 5 (Claude Fable 5) - 2026-09-26
 
-[Model's response goes here]
+Iterating. The idea reads as moreover's second act: the first act made
+*one* truncation resumable; this makes the `grep -A6` failure — many
+truncations at once — resumable per match. Sharpening five things, one
+of which is a real design catch in your sketch:
+
+**1. The catch: interleaved trailers can't ride stderr.** Your sketch
+shows each substream's trailer *inline between groups*. With today's
+stderr default, that interleaving is not guaranteed — stdout and stderr
+are separately buffered, so a pipe consumer would see the trailers
+drift out of position (or not at all). Demux mode's per-substream
+trailers must go **on stdout, in-band**, as your sketch actually drew
+them — which is fine precisely because demux output is already
+structured for the reader, not for further blind piping. That makes
+demux a distinct output *shape*, honestly a new trailer schema (the v0
+grammar is frozen for the single-stream forms; a demux form is an
+addition, versioned, not a mutation).
+
+**2. The unit of resumption: your sketch is right, and it's the
+`--overlap` story again.** Each substream gets its own cursor — a model
+scanning 30 QSTs resumes only the two it cares about, which is the
+whole point. The open refinement: whether the demux invocation ALSO
+mints one *batch* handle ("next page of every unfinished substream").
+My lean: yes, later — individual cursors are the primitive; a batch
+handle is sugar the desk can add when real transcripts show models
+wanting it.
+
+**3. Overlap detection gets exact the moment we ask for `-n`.** Your
+"sourced from the exact same lines" is implementable without any
+similarity heuristics: `grep -rn`/`rg -n` prefixes carry (file, line)
+provenance, so duplicate-suppression is set-membership on line
+identity. The refinement writes itself: the grep-mode parser reads the
+prefix, and truncate-before-duplicate is deterministic. Without `-n`,
+we degrade honestly (no dedup, or byte-identity only) rather than
+guessing.
+
+**4. Stop-words compose with your assertive-flags doctrine.** A
+`--until PATTERN` per-substream truncation (stop before the next
+`^###`/`^##`) is a *destination-asserting* option and pairs naturally
+with stop-word presets per mode. Which brings the preconfiguration
+question home: your options 1–2 (grep-conventions default; per-tool
+modes) fit the house — an assertive `--demux grep|rg|…` mode flag with
+the grep shape as default. Option 3 (autodetect via classifiers) I'd
+hold at arm's length: it sits in the compensatory column (heuristics
+tuned to today's tools' quirks) and violates "flags assert
+destinations" in spirit — the tool guessing its input's grammar is the
+kind of invisible state the trailer doctrine exists against. If
+autodetect ever comes, `calibrate`'s measure-don't-guess shape is the
+honest version of it.
+
+**5. Scope guard, agreeing with your closing line.** None of this
+belongs in the current stable intermediate form: demux touches the
+store (substream families), the trailer (new schema), and the CLI
+grammar (mode flag) at once — it's a v0.3+ act with its own ADR when
+we're ready. What CAN land early and cheap: the `--until` stop-word on
+*single-stream* paging (useful alone: "page until the next heading"),
+as a stepping stone that de-risks one of demux's three legs.
+
+One naming note for later, not routed yet: "demux" is my working word;
+the naming authority will want the docket when this firms (mode flag
+name, the batch-handle question, the new schema's name).
 
 ---
 
 **Model Response Request:**
 
 - [ ] Chunk this into ADRs
-- [ ] Iterate with me
+- [X] Iterate with me
 - [ ] Structure in place
 
 ### [Your Name] - [Date]

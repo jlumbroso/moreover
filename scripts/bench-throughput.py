@@ -46,12 +46,27 @@ class Bench:
         self.rows = []
 
     def measure_once(self, argv, env, stdin=None):
-        full = (self.timer_argv or []) + argv
+        # Timer stats go to their own file (-o), so the workload's stderr
+        # is never displaced by the timer's output — a failed run reports
+        # the tool's actual diagnostic, not "peak memory footprint"
+        # (Lector 6's audit, finding 2, proven with a fake-flag probe).
+        statsf = None
+        if self.timer_argv:
+            statsf = tempfile.NamedTemporaryFile("r", delete=False, suffix=".time")
+            full = self.timer_argv + ["-o", statsf.name] + argv
+        else:
+            full = argv
         t0 = time.monotonic_ns()
         r = subprocess.run(full, input=stdin, capture_output=True, env=env)
         t1 = time.monotonic_ns()
-        rss = self.rss_parse(r.stderr.decode("utf-8", "replace")) if self.timer_argv else None
-        return (t1 - t0) / 1e6, rss, r.returncode, r.stderr.decode("utf-8", "replace")[-300:]
+        rss = None
+        if statsf:
+            stats = Path(statsf.name).read_text()
+            Path(statsf.name).unlink(missing_ok=True)
+            rss = self.rss_parse(stats)
+        err = r.stderr.decode("utf-8", "replace").strip()
+        diag = err.splitlines()[-1] if err else ""
+        return (t1 - t0) / 1e6, rss, r.returncode, diag
 
     def case(self, name, argv, env, samples=3, stdin=None):
         """Run a case `samples` times; report median elapsed, spread, max RSS."""
@@ -73,10 +88,33 @@ class Bench:
     def skip(self, name, why):
         self.rows.append((name, f"SKIPPED: {why}", "—"))
 
-def cursor_of(bin_path, env, argv):
-    r = sh([bin_path] + argv, env=env)
+def prep(b, what, args, env, **kw):
+    """A checked preparation step: its status and diagnostic are retained,
+    and a failure surfaces as its own row so dependent skips carry a cause
+    (audit finding 2: never label dependent work ready unchecked)."""
+    r = subprocess.run(args, capture_output=True, text=True, env=env, **kw)
+    if r.returncode != 0:
+        diag = (r.stderr.strip().splitlines() or [""])[-1]
+        b.rows.append((f"prep: {what}", f"FAILED exit {r.returncode}: {diag}", "—"))
+        return None
+    return r
+
+def cursor_of(b, what, bin_path, env, argv):
+    r = prep(b, what, [bin_path] + argv, env)
+    if r is None:
+        return None, None
     m = re.search(r"cursor: ([a-z0-9]+)>", r.stderr)
-    return m.group(1) if (r.returncode == 0 and m) else None
+    if not m:
+        b.rows.append((f"prep: {what}", "FAILED: no cursor in trailer", "—"))
+        return None, None
+    cur = m.group(1)
+    # exact workload provenance: the minted record's byte offset
+    off = None
+    cdir = Path(env["MOREOVER_STATE_DIR"]) / "cursors" / cur
+    if cdir.is_file():
+        om = re.search(r"^offset=(\d+)$", cdir.read_text(), re.M)
+        off = int(om.group(1)) if om else None
+    return cur, off
 
 def main():
     ap = argparse.ArgumentParser()
@@ -90,12 +128,17 @@ def main():
     try:
         b = Bench(binp)
         sha = hashlib.sha256(binp.read_bytes()).hexdigest()[:16]
+        script_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:12]
         rev = sh(["git", "rev-parse", "--short", "HEAD"]).stdout.strip()
-        dirty = "+dirty" if sh(["git", "status", "--porcelain", "src", "Cargo.toml"]).stdout.strip() else ""
+        dirty = "+dirty" if sh(["git", "status", "--porcelain", "src", "Cargo.toml", "scripts"]).stdout.strip() else ""
         ver = sh([str(binp), "--version"]).stdout.strip()
 
         print(f"## moreover throughput — {ver}")
-        print(f"- binary: sha256:{sha} · built at git {rev}{dirty} · {platform.platform()}")
+        # "checkout revision at run time", NOT build provenance — the
+        # binary's identity is its sha256 alone (audit finding 3: two runs
+        # of one binary printed different git revs under the old label).
+        print(f"- binary: sha256:{sha} (identity) · checkout at run time: git {rev}{dirty}"
+              f" · bench script sha256:{script_sha} · {platform.platform()}")
         print(f"- timer: {' '.join(b.timer_argv) if b.timer_argv else 'none (elapsed only)'}"
               f" · single-process monotonic clock · 3 samples/case, median (min–max)")
         print(f"- page size fixed: 10 lines / 4096 bytes · {time.strftime('%Y-%m-%dT%H:%MZ', time.gmtime())}")
@@ -128,41 +171,60 @@ def main():
                 if r is not None:
                     fresh_rss.append(r)
             if fail:
-                b.rows.append((f"FRESH ingestion+first page, {label} lines ({nbytes/1e6:.0f} MB)", f"FAILED exit {fail[0]}: {fail[1]}", "—"))
+                b.rows.append((f"FRESH ingestion+first page, {label} lines ({nbytes:,} B)", f"FAILED exit {fail[0]}: {fail[1]}", "—"))
             else:
-                b.rows.append((f"FRESH ingestion+first page, {label} lines ({nbytes/1e6:.0f} MB)",
+                b.rows.append((f"FRESH ingestion+first page, {label} lines ({nbytes:,} B)",
                                f"{median(fresh_ms):.0f} ms ({min(fresh_ms):.0f}–{max(fresh_ms):.0f})",
                                f"{max(fresh_rss)} MiB" if fresh_rss else "?"))
 
             # repeat ingestion + resumes share one persistent state dir
             st = scratch / f"state-{label}"
             env = {**env0, "MOREOVER_STATE_DIR": str(st)}
-            sh([str(binp), str(corpus), "-10"], env=env)  # create the spool
-            b.case(f"REPEAT ingestion (existing spool)+first page, {label} lines", [str(binp), str(corpus), "-10"], env)
+            if prep(b, f"spool creation, {label}", [str(binp), str(corpus), "-10"], env) is not None:
+                b.case(f"REPEAT ingestion (existing spool)+first page, {label} lines", [str(binp), str(corpus), "-10"], env)
+            else:
+                b.skip(f"REPEAT ingestion, {label} lines", "spool creation failed (see prep row)")
 
-            early = cursor_of(str(binp), env, [str(corpus), "-10"])
-            b.case(f"resume EARLY -10, {label} lines", [str(binp), "-c", early, "-10"], env) if early \
-                else b.skip(f"resume EARLY -10, {label} lines", "no early cursor minted")
+            early, eoff = cursor_of(b, f"early cursor, {label}", str(binp), env, [str(corpus), "-10"])
+            b.case(f"resume EARLY -10 (offset {eoff}), {label} lines", [str(binp), "-c", early, "-10"], env) if early \
+                else b.skip(f"resume EARLY -10, {label} lines", "prep failed (see prep row)")
 
-            late = cursor_of(str(binp), env, [str(corpus), "--bytes", str(nbytes * 9 // 10)])
+            late, loff = cursor_of(b, f"late cursor, {label}", str(binp), env, [str(corpus), "--bytes", str(nbytes * 9 // 10)])
             if late:
-                b.case(f"resume LATE (~90% offset) -10, {label} lines", [str(binp), "-c", late, "-10"], env)
-                b.case(f"resume LATE --bytes 4096, {label} lines", [str(binp), "-c", late, "--bytes", "4096"], env)
-                b.case(f"resume LATE -10 --overlap 5, {label} lines", [str(binp), "-c", late, "-10", "--overlap", "5"], env)
+                b.case(f"resume LATE -10 (offset {loff}), {label} lines", [str(binp), "-c", late, "-10"], env)
+                b.case(f"resume LATE --bytes 4096 (offset {loff}), {label} lines", [str(binp), "-c", late, "--bytes", "4096"], env)
+                b.case(f"resume LATE -10 --overlap 5 (offset {loff}), {label} lines", [str(binp), "-c", late, "-10", "--overlap", "5"], env)
             else:
                 for nm in ("-10", "--bytes 4096", "-10 --overlap 5"):
-                    b.skip(f"resume LATE {nm}, {label} lines", "no late cursor minted")
+                    b.skip(f"resume LATE {nm}, {label} lines", "prep failed (see prep row)")
 
-        # one very long line, ~10 MB: fixed line counts do not bound output bytes
+        # one very long line, ~10 MB: fixed line counts do not bound output
+        # bytes. Fresh means fresh EVERY sample (audit finding 1: the first
+        # draft reused one state dir across the three samples here, mixing
+        # one fresh ingestion with two repeats).
         longline = scratch / "longline.txt"
         longline.write_text("x" * 10_000_000 + "\n")
-        st = scratch / "state-longline-fresh"
-        b.case("FRESH ingestion+first page, one 10MB line",
-               [str(binp), str(longline), "-10"], {**env0, "MOREOVER_STATE_DIR": str(st)})
+        longline.read_bytes()
+        ll_ms, ll_rss, ll_fail = [], [], None
+        for i in range(3):
+            env = {**env0, "MOREOVER_STATE_DIR": str(scratch / f"state-longline-fresh-{i}")}
+            el, r, code, diag = b.measure_once([str(binp), str(longline), "-10"], env)
+            if code != 0:
+                ll_fail = (code, diag)
+                break
+            ll_ms.append(el)
+            if r is not None:
+                ll_rss.append(r)
+        if ll_fail:
+            b.rows.append(("FRESH ingestion+first page, one 10MB line (emits whole line)", f"FAILED exit {ll_fail[0]}: {ll_fail[1]}", "—"))
+        else:
+            b.rows.append(("FRESH ingestion+first page, one 10MB line (emits whole line)",
+                           f"{median(ll_ms):.0f} ms ({min(ll_ms):.0f}–{max(ll_ms):.0f})",
+                           f"{max(ll_rss)} MiB" if ll_rss else "?"))
         env = {**env0, "MOREOVER_STATE_DIR": str(scratch / "state-longline")}
-        lc = cursor_of(str(binp), env, [str(longline), "--bytes", "100"])
-        b.case("resume --bytes 4096, one 10MB line", [str(binp), "-c", lc, "--bytes", "4096"], env) if lc \
-            else b.skip("resume --bytes 4096, one 10MB line", "no cursor minted")
+        lc, lcoff = cursor_of(b, "long-line cursor", str(binp), env, [str(longline), "--bytes", "100"])
+        b.case(f"resume --bytes 4096 (offset {lcoff}), one 10MB line", [str(binp), "-c", lc, "--bytes", "4096"], env) if lc \
+            else b.skip("resume --bytes 4096, one 10MB line", "prep failed (see prep row)")
 
         print("| case | elapsed, median (min–max) | peak RSS |")
         print("|---|---|---|")

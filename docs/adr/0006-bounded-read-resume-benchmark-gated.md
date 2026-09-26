@@ -3,7 +3,7 @@
 # ADR-0006: Bounded-read resume — benchmark-gated
 
 - **Date**: 2026-09-26
-- **Iteration**: 2
+- **Iteration**: 3
 - **Status**: Accepted
 - **Deciders**: Jérémie Lumbroso (the gate ruling); Ribbon 5 (implementation); Lector 6 (measurement corrections the gate consists of)
 
@@ -225,6 +225,59 @@ implementation reads the entire saved input on each resume."** The
 anticipated memory reduction remains a target until the after-picture
 measures it. The earlier table remains useful evidence with the long-line
 fresh row excluded; it should not yet be described as the full spec met.
+
+### Iteration 3 (2026-09-26) — audit findings applied; baseline v2 is the before-picture of record
+
+All three audit findings are implemented in the harness: (1) the
+long-line fresh row uses a new state directory per sample; (2) timer
+stats go to their own file (`-o`), preparation commands are checked
+rows, and skips carry their prep-failure cause — the fake-flag probe's
+displacement class is closed; (3) provenance is labeled honestly
+("checkout revision at run time" beside the binary's sha256 identity,
+plus the bench script's own hash and a scripts-inclusive dirty check),
+and every resume row carries its exact byte offset with exact input
+bytes. Baseline v2, the run the after-picture must match case-for-case:
+
+binary sha256:32f07bb7fef30022 · checkout at run: git b4b3f99+dirty ·
+bench script sha256:c4b0c6e33375 · /usr/bin/time -l · macOS-26.2-arm64 ·
+2026-09-26T22:53Z
+
+| case | elapsed, median (min–max) | peak RSS |
+|---|---|---|
+| calibration (`true`) | 5 ms (4–6) | 1 MiB |
+| FRESH ingestion+first page, 100k lines (3,488,895 B) | 29 ms (26–34) | 4 MiB |
+| REPEAT ingestion (existing spool)+first page, 100k lines | 17 ms (17–18) | 4 MiB |
+| resume EARLY -10 (offset 311), 100k lines | 12 ms (12–12) | 4 MiB |
+| resume LATE -10 (offset 3140005), 100k lines | 14 ms (13–15) | 4 MiB |
+| resume LATE --bytes 4096 (offset 3140005), 100k lines | 12 ms (11–12) | 4 MiB |
+| resume LATE -10 --overlap 5 (offset 3140005), 100k lines | 15 ms (14–16) | 5 MiB |
+| FRESH ingestion+first page, 1M lines (35,888,896 B) | 86 ms (83–86) | 35 MiB |
+| REPEAT ingestion (existing spool)+first page, 1M lines | 71 ms (70–75) | 35 MiB |
+| resume EARLY -10 (offset 311), 1M lines | 24 ms (23–24) | 35 MiB |
+| resume LATE -10 (offset 32300006), 1M lines | 35 ms (34–37) | 35 MiB |
+| resume LATE --bytes 4096 (offset 32300006), 1M lines | 24 ms (23–26) | 35 MiB |
+| resume LATE -10 --overlap 5 (offset 32300006), 1M lines | 51 ms (51–51) | 44 MiB |
+| FRESH ingestion+first page, 5M lines (183,888,896 B) | 366 ms (365–686) | 176 MiB |
+| REPEAT ingestion (existing spool)+first page, 5M lines | 318 ms (312–321) | 176 MiB |
+| resume EARLY -10 (offset 311), 5M lines | 74 ms (73–77) | 176 MiB |
+| resume LATE -10 (offset 165500006), 5M lines | 133 ms (131–145) | 176 MiB |
+| resume LATE --bytes 4096 (offset 165500006), 5M lines | 77 ms (76–77) | 176 MiB |
+| resume LATE -10 --overlap 5 (offset 165500006), 5M lines | 221 ms (221–225) | 213 MiB |
+| FRESH ingestion+first page, one 10MB line (emits whole line) | 49 ms (48–50) | 11 MiB |
+| resume --bytes 4096 (offset 100), one 10MB line | 18 ms (17–19) | 11 MiB |
+
+Still owed before graduation to a regression gate, per the audit's
+closing section: output-content verification outside the timing
+interval (a success status alone cannot establish equal work); an
+explicit acceptance rule; and failures affecting the harness's exit
+status. Those land with the after-picture (Action Items). The public
+claim of record remains the audit's own sentence: in these macOS runs,
+resuming the same 320 bytes from saved inputs of 100k/1M/5M lines used
+approximately 4/35/176 MiB of peak resident memory; the current
+implementation reads the entire saved input on each resume.
+
+- Contributors: Lector 6 (audit, corroborating rerun, retained recheck record); Ribbon 5 (fixes, baseline v2).
+- Outcome: measurement gate closed for the before-picture; seek implementation (step 3) proceeds.
 
 ---
 
