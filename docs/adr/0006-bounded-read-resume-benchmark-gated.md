@@ -3,7 +3,7 @@
 # ADR-0006: Bounded-read resume — benchmark-gated
 
 - **Date**: 2026-09-26
-- **Iteration**: 1
+- **Iteration**: 2
 - **Status**: Accepted
 - **Deciders**: Jérémie Lumbroso (the gate ruling); Ribbon 5 (implementation); Lector 6 (measurement corrections the gate consists of)
 
@@ -76,6 +76,51 @@ surprises us with lands here as an iteration.*
 - Trigger: QST-SEEK-GO answered (B) in the dogfooding seed; chunked here at his request.
 - Contributors: Jérémie (the gate ruling, verbatim); Ribbon 5 (record, sequencing); Lector 6 (the measurement spec the gate adopts).
 - Outcome: `— → Accepted`; work sequenced.
+
+### Iteration 2 (2026-09-26) — the corrected baseline (the before-picture)
+
+`scripts/bench-throughput.py` (supersedes the .sh) implements the full
+spec: one probed platform timer, single-process monotonic clock,
+calibration row, fresh-vs-repeat ingestion separated, 3 samples/case
+with median (min–max), explicit failure/skip reporting, binary
+sha256+git-rev metadata. The staked run, verbatim:
+
+binary sha256:32f07bb7fef30022 · git 5167f9a · macOS-26.2-arm64 ·
+/usr/bin/time -l · 2026-09-26T22:16Z · pages fixed 10 lines / 4096 B
+
+| case | elapsed, median (min–max) | peak RSS |
+|---|---|---|
+| calibration (`true`) | 5 ms (5–5) | 1 MiB |
+| FRESH ingestion+first page, 100k lines (3 MB) | 27 ms (24–28) | 4 MiB |
+| REPEAT ingestion (existing spool)+first page, 100k lines | 17 ms (16–17) | 4 MiB |
+| resume EARLY -10, 100k lines | 11 ms (11–12) | 4 MiB |
+| resume LATE (~90%) -10, 100k lines | 14 ms (13–14) | 4 MiB |
+| resume LATE --bytes 4096, 100k lines | 12 ms (11–12) | 4 MiB |
+| resume LATE -10 --overlap 5, 100k lines | 14 ms (14–14) | 5 MiB |
+| FRESH ingestion+first page, 1M lines (36 MB) | 87 ms (85–87) | 35 MiB |
+| REPEAT ingestion (existing spool)+first page, 1M lines | 70 ms (70–73) | 35 MiB |
+| resume EARLY -10, 1M lines | 24 ms (23–24) | 35 MiB |
+| resume LATE (~90%) -10, 1M lines | 35 ms (33–36) | 35 MiB |
+| resume LATE --bytes 4096, 1M lines | 23 ms (22–23) | 35 MiB |
+| resume LATE -10 --overlap 5, 1M lines | 53 ms (51–55) | 44 MiB |
+| FRESH ingestion+first page, 5M lines (184 MB) | 374 ms (373–411) | 176 MiB |
+| REPEAT ingestion (existing spool)+first page, 5M lines | 325 ms (321–330) | 176 MiB |
+| resume EARLY -10, 5M lines | 86 ms (84–87) | 176 MiB |
+| resume LATE (~90%) -10, 5M lines | 155 ms (140–192) | 176 MiB |
+| resume LATE --bytes 4096, 5M lines | 93 ms (91–98) | 176 MiB |
+| resume LATE -10 --overlap 5, 5M lines | 222 ms (218–225) | 213 MiB |
+| FRESH ingestion+first page, one 10MB line | 46 ms (45–52) | 11 MiB |
+| resume --bytes 4096, one 10MB line | 18 ms (18–19) | 11 MiB |
+
+Reading, in the ruled wording discipline: resume elapsed and peak RSS
+scale with saved-input size, not requested output (86–222 ms and
+176–213 MiB to deliver ten lines of 184 MB); the seek implementation's
+target is work proportional to requested bytes plus indexing/overlap.
+Lector 6's audit of this rebuild is invited before the after-picture
+claims anything.
+
+- Contributors: Ribbon 5 (rebuild, run); Lector 6 (the spec; audit pending).
+- Outcome: gate step 2 complete; implementation (step 3) may begin.
 
 ---
 
