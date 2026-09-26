@@ -187,11 +187,17 @@ specimens are his own words from private ledgers):
 
 ---
 
-**GATE (blocking, not advisory)**: no verbatim specimen from the census
-— they are Jérémie's own words from private ledgers — appears in any
-public standard material until his explicit confirm lands in this
-seed's thread. Counts and shapes only, until then. (Gleaner's guard,
-elevated to a gate at the naming authority's instruction.)
+**GATE (blocking; reshaped 2026-09-26 to match his actual decision
+structure)**: no verbatim specimen from the census — they are Jérémie's
+own words from private ledgers — appears in any public material,
+**default and indefinitely**. This is not pending a normative ruling:
+he has no qualms about the practice, but specific quotes might leak
+information he holds, so the only rulable unit is *the specific quote*.
+Procedure: if a draft ever genuinely needs a specimen, the request goes
+to him as {the exact quote, the proposed context, what it adds that
+counts-and-shapes don't}, one at a time, and he arbitrates that quote
+only. **No requests are pending** — the census's counts and shapes
+carry the design signal, and nothing drafted so far needs a specimen.
 
 *Remaining threads: Gleaner's dossier and opinion — returned (above);
 the ThirdX candidacy (with Cartulary, as their ADR-0007). The naming
