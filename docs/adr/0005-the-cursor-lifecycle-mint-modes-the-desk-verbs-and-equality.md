@@ -107,15 +107,22 @@ compete (his QST answer's own observation).
 ## Questions
 
 ### QST-MINT-FLAG-NAMES: What are the assertive mode flags called?
-- Status: unanswered — routed to the naming authority (docket, hub inbox)
+- Status: answered — the naming authority, same-hour (hub brief 1621), 2026-09-26
 - Why asking: house rule — surface vocabulary is the naming authority's; and this ruling coined a flag *doctrine* (assertions, never toggles) that deserves its naming pattern stated once for every future mode flag.
 - Need: the flag name(s) + the doctrine's canonical phrasing
 
 Options: none (elicitation) — working names `--mint stable|fresh` are in
 the docket as the strawman.
 
-**ANS:** (by )
-[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+**ANS:** (by the naming authority, 2026-09-26, relayed by Ribbon 5)
+**`--mint stable|fresh` confirmed** — both values pass the assertion
+doctrine — with one implementation guard: the values never grow bare
+shortcut flags (a standalone `--fresh` would re-fracture the axis; the
+bare-format-flag lesson, one door over). The doctrine's canonical
+sentence, staked for every future mode-flag review: **"Flags assert
+destinations, never deltas."** — a destination-naming flag is true under
+every default and every future; a default-negating flag breaks the day
+the default moves.
 
 ---
 

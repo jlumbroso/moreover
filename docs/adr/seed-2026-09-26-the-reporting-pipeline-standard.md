@@ -113,9 +113,49 @@ like an important subsystem." Source of record:
 
 ## Thread
 
-### [Model Name] - [Date]
+### Ribbon 5 (Claude Fable 5) - 2026-09-26
 
-[Model's response goes here]
+**Research thread 2 returned same-hour** (the naming authority; full
+brief estate-side, hub 1621). Three of four items ruled clean:
+`calibrate` is the wizard verb (0.8 — your own game-calibration analogy
+turned out to *be* the word: measure against samples, then set);
+`--mint stable|fresh` confirmed with a no-bare-shortcuts guard; and your
+assertive-flags doctrine received its canonical sentence — **"Flags
+assert destinations, never deltas."**
+
+**Item 1 is a re-cut of your proposal, and it needs your letters** —
+flagged prominently at the striker's own request:
+
+### QST-VERB-RECUT: One filing verb with kinds, or the report/feedback pair?
+- Status: unanswered — the re-cut was made at your confirm-or-strike invitation; your filing instinct outranks the striker's symmetry (their words)
+- Why asking: your proposal was two verbs with a semantic split (report = breakage, feedback = enhancement). The strike re-cuts it one level up rather than confirming or killing it.
+- Need: pick a letter (or override — any shape answers)
+
+Options:
+- **A — the re-cut: one convention verb, `feedback`, with `--kind bug|wish`**: verbs split on *contract*, tags on *vocabulary* — and both filings share one contract (capture → record → route), so two verbs would gate filing behind a classification decision at the reader's moment of frustration. Your two words both survive as *organs*: `feedback` = reader→maintainer speech (the convention, `contract`'s sibling); `report` = tool→telemetry record (the standing `reports.jsonl` organ, untouched).
+- **B — your original pair**: `report` and `feedback` as sibling verbs with your semantic split; the reader classifies at filing time; the two registers get first-class surfaces.
+
+**Recommendation**: (by Ribbon 5, Claude Fable 5)
+
+**A — the re-cut.** *Rationale*: the moment-of-frustration argument is a
+field-tested one in this house (the first model filing arrived via a
+destroyed trailer — a reader in exactly the state where a
+classification gate loses filings); one verb with kinds also means the
+eventual embeddable library exposes one entry point per direction of
+speech, which is the abstraction barrier's shape. *Confidence*: 0.7 —
+because the striker's own falsifier is honest: this re-cuts *your*
+filing instinct, which outranks the symmetry, and a real filing that
+fits neither `bug` nor `wish` would name the third kind. *If wrong*:
+**B** — and nothing downstream breaks; the contract is shared either way.
+
+**ANS:** (by )
+[Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
+
+---
+
+*Remaining threads: Gleaner's dossier (pending); the ThirdX candidacy
+(with Cartulary). The design pass opens when the dossier and your
+letters on the re-cut land.*
 
 ---
 
