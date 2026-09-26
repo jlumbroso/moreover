@@ -144,7 +144,7 @@ fn cursor_ids_always_mix_letters_and_digits() {
     let store = scratch_store("mixed");
     for _ in 0..100 {
         let id = store
-            .put_cursor(&Cursor { spool: "s".into(), offset: 0, line: 0, page: 1, desk: String::new() })
+            .put_cursor(&Cursor { spool: "s".into(), offset: 0, line: 0, page: 1, desk: String::new(), nl: Some(0) })
             .unwrap();
         assert!(
             id.bytes().any(|b| b.is_ascii_digit()) && id.bytes().any(|b| b.is_ascii_alphabetic()),
@@ -174,6 +174,77 @@ fn overlap_reprints_context_without_counting_it() {
 }
 
 #[test]
+fn legacy_state_without_meta_or_nl_still_resumes_correctly() {
+    // Regression guard for ADR-0006's compatibility promise: state dirs
+    // written by v0.2.0 have neither spool .meta sidecars nor cursor nl
+    // fields. Both degradations must fall back to the whole-read path
+    // and produce byte-identical output — correct, just costlier.
+    let store = scratch_store("legacy");
+    let input = numbered_lines(30);
+    let mut p1 = Vec::new();
+    let t1 = page_new(&store, &input, Take::Units(10), Unit::Lines, &mut p1).unwrap();
+    let id = t1.cursor.unwrap();
+
+    // simulate a legacy spool: remove the sidecar
+    let meta = std::fs::read_dir(store.root().join("spools"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| p.extension().is_some_and(|x| x == "meta"))
+        .unwrap();
+    std::fs::remove_file(&meta).unwrap();
+
+    let mut rest = Vec::new();
+    let t2 = page_resume(&store, &id, Take::All, Unit::Lines, 0, &mut rest).unwrap();
+    assert_eq!([p1.clone(), rest].concat(), input);
+    assert_eq!((t2.shown, t2.total, t2.cursor), (30, 30, None));
+
+    // simulate a legacy cursor: strip its nl= line (meta restored via re-page)
+    let mut p1b = Vec::new();
+    let t1b = page_new(&store, &input, Take::Units(10), Unit::Lines, &mut p1b).unwrap();
+    let idb = t1b.cursor.unwrap();
+    let cpath = store.root().join("cursors").join(&idb);
+    let stripped: String = std::fs::read_to_string(&cpath)
+        .unwrap()
+        .lines()
+        .filter(|l| !l.starts_with("nl="))
+        .map(|l| format!("{l}\n"))
+        .collect();
+    std::fs::write(&cpath, stripped).unwrap();
+    let mut restb = Vec::new();
+    let t2b = page_resume(&store, &idb, Take::All, Unit::Lines, 0, &mut restb).unwrap();
+    assert_eq!([p1b, restb].concat(), input);
+    assert_eq!((t2b.shown, t2b.total, t2b.cursor), (30, 30, None));
+}
+
+#[test]
+fn bounded_resume_is_exact_across_a_line_larger_than_its_chunk() {
+    // The bounded path streams 64KiB chunks; a single line can dwarf
+    // that ("one line can be huge" — the ruled wording's own caveat).
+    // Ground truth is the input slice itself.
+    let store = scratch_store("hugeline");
+    let huge = "x".repeat(200_000);
+    let input: Vec<u8> = format!("alpha\nbeta\n{huge}\ngamma\ndelta\n").into_bytes();
+
+    let mut p1 = Vec::new();
+    let t1 = page_new(&store, &input, Take::Units(2), Unit::Lines, &mut p1).unwrap();
+    assert_eq!(p1, b"alpha\nbeta\n");
+
+    // the huge line arrives whole through the chunked scanner
+    let mut p2 = Vec::new();
+    let t2 = page_resume(&store, t1.cursor.as_ref().unwrap(), Take::Units(1), Unit::Lines, 0, &mut p2)
+        .unwrap();
+    assert_eq!(p2, format!("{huge}\n").into_bytes());
+    assert_eq!((t2.page, t2.shown, t2.total), (2, 3, 5));
+
+    // overlap's backward scan must cross the huge line intact
+    let mut p3 = Vec::new();
+    let t3 = page_resume(&store, t2.cursor.as_ref().unwrap(), Take::Units(1), Unit::Lines, 1, &mut p3)
+        .unwrap();
+    assert_eq!(p3, format!("{huge}\ngamma\n").into_bytes());
+    assert_eq!((t3.shown, t3.total), (4, 5), "overlap reprint must not count as progress");
+}
+
+#[test]
 fn identical_streams_share_one_spool() {
     // Content-addressed spools: rerunning the same pipeline twice must not
     // duplicate state on disk.
@@ -182,6 +253,11 @@ fn identical_streams_share_one_spool() {
     let mut out = Vec::new();
     page_new(&store, &input, Take::Units(5), Unit::Lines, &mut out).unwrap();
     page_new(&store, &input, Take::Units(5), Unit::Lines, &mut out).unwrap();
-    let spools = std::fs::read_dir(store.root().join("spools")).unwrap().count();
-    assert_eq!(spools, 1);
+    // one spool + its one drain-time .meta sidecar (ADR-0006), both deduped
+    let names: Vec<String> = std::fs::read_dir(store.root().join("spools"))
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .collect();
+    assert_eq!(names.len(), 2, "expected spool + meta, got: {names:?}");
+    assert_eq!(names.iter().filter(|n| n.ends_with(".meta")).count(), 1);
 }

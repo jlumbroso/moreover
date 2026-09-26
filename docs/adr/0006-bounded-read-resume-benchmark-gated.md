@@ -3,8 +3,8 @@
 # ADR-0006: Bounded-read resume — benchmark-gated
 
 - **Date**: 2026-09-26
-- **Iteration**: 3
-- **Status**: Accepted
+- **Iteration**: 4
+- **Status**: Implemented
 - **Deciders**: Jérémie Lumbroso (the gate ruling); Ribbon 5 (implementation); Lector 6 (measurement corrections the gate consists of)
 
 **TL;DR**: Resume stops reading the whole spool. The change is
@@ -333,6 +333,55 @@ and RSS rows. Actual output-byte recording and content verification
 remain due before the after-picture establishes equal work, as already
 noted above; the exit-status and acceptance-rule work remains the later
 regression-gate step. This re-check makes no claim about seek results.
+
+### Iteration 4 (2026-09-26) — implemented; the after-picture
+
+**Design as shipped**: spools gain a drain-time `.meta` sidecar (bytes,
+complete newlines, ends-with-newline flag — healed onto legacy spools
+whenever their content is re-piped); cursors gain an authoritative `nl`
+field (complete newlines before the offset) beside the historical
+`line` display count; resume seeks and streams `[start, end)` in 64 KiB
+chunks, counting newlines as they pass, with overlap found by a
+doubling backward scan whose cost tracks the overlap's own bytes.
+Records or spools lacking metadata resume via the legacy whole-read
+path — correct, just costlier — under regression test, as is the
+huge-line case (a 200 KB single line crossing the chunk boundary, with
+overlap). 33 tests green; the full suite (founding sketch, replay
+options, case-folds) now exercises the bounded path.
+
+**The after-picture** (same harness sha256:c4b0c6e33375, same cases;
+binary sha256:45ecedc0f8e4690f at checkout aaa96cc+dirty,
+2026-09-26T23:2xZ). Disclosure: the first after-run was discarded for
+visible machine contention (calibration 10 ms vs 5; ingestion spreads
+to 2121 ms on unchanged code paths); the staked run's calibration
+matches the baseline's 5 ms. Matched resume cases, before → after:
+
+| resume case (5M lines, 183,888,896 B) | before | after |
+|---|---|---|
+| EARLY -10 (offset 311) | 74 ms · 176 MiB | 13 ms · 1 MiB |
+| LATE -10 (offset 165500006) | 133 ms · 176 MiB | 16 ms · 1 MiB |
+| LATE --bytes 4096 | 77 ms · 176 MiB | 16 ms · 1 MiB |
+| LATE -10 --overlap 5 | 221 ms · 213 MiB | 16 ms · 1 MiB |
+| (1M-line resumes) | 24–51 ms · 35–44 MiB | 12–14 ms · 1 MiB |
+| (100k-line resumes) | 12–15 ms · 4–5 MiB | 11–12 ms · 1 MiB |
+
+Resume elapsed no longer varies with saved-input size (11–17 ms flat,
+3 MB through 184 MB); peak RSS is 1 MiB on every resume row. Ingestion
+holds parity with baseline (fresh 5M: 422 vs 366 ms medians, within
+machine variance; the meta write is invisible). The public claim, in
+the ruled wording: **resume now performs work proportional to the
+requested bytes plus indexing/overlap; in these matched macOS runs,
+resuming ten lines of a 184 MB saved input went from 133 ms and
+176 MiB to 16 ms and 1 MiB.**
+
+**Not yet claimed**: graduation to a regression gate still owes the
+audit's closing items — output-content verification inside the harness
+(the *test suite* verifies content equivalence; the benchmark itself
+does not yet), an explicit acceptance rule, and failures affecting exit
+status. Those remain the open action item.
+
+- Contributors: Ribbon 5 (implementation, runs); Lector 6 (the audit whose items shaped the harness; re-check invited).
+- Outcome: `Accepted → Implemented`; graduation items remain open.
 
 ---
 

@@ -23,12 +23,44 @@ pub struct Cursor {
     pub line: u64,
     pub page: u64,
     pub desk: String,
+    /// Complete newlines before `offset` — the field that lets a bounded
+    /// resume report exact line counts without rescanning the prefix
+    /// (ADR-0006). `None` on records minted before it existed: those
+    /// resume via the legacy whole-read path.
+    pub nl: Option<u64>,
+}
+
+/// Spool metadata, written once at drain time (ADR-0006): totals the
+/// trailer needs, so resume never rescans the spool to count them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SpoolMeta {
+    pub bytes: u64,
+    /// Complete newlines in the spool.
+    pub nl: u64,
+    /// Whether the spool's last byte is a newline (decides if a trailing
+    /// partial line counts toward the line total).
+    pub ends_nl: bool,
+}
+
+impl SpoolMeta {
+    /// Total lines under the house counting rule (a final unterminated
+    /// line counts: a reader was shown it, the trailer must not lie).
+    pub fn total_lines(&self) -> u64 {
+        self.nl + u64::from(self.bytes > 0 && !self.ends_nl)
+    }
 }
 
 pub trait Store {
     /// Persist a fully drained stream; returns the spool's name.
     fn put_spool(&self, data: &[u8]) -> io::Result<String>;
     fn read_spool(&self, name: &str) -> io::Result<Vec<u8>>;
+    /// Drain-time totals, if this spool has them (`None` = legacy spool:
+    /// resume falls back to the whole-read path).
+    fn spool_meta(&self, name: &str) -> io::Result<Option<SpoolMeta>>;
+    /// Seek + bounded read: exactly `[start, start+len)` clamped to the
+    /// spool's end — the primitive that makes resume cost proportional
+    /// to what was requested.
+    fn read_spool_range(&self, name: &str, start: u64, len: u64) -> io::Result<Vec<u8>>;
     /// Persist a position; returns its freshly minted base-32 id.
     /// Cursors are immutable — resuming never rewrites one, it mints the
     /// next position's id, so re-reading a cursor is idempotent.
@@ -73,18 +105,29 @@ impl Store for FsStore {
     fn put_spool(&self, data: &[u8]) -> io::Result<String> {
         let name = format!("{:016x}", fnv1a64(data));
         let path = self.root.join("spools").join(&name);
-        if path.exists() {
-            // Content-addressed: same bytes, same spool — rerunning a
-            // pipeline never duplicates state.
-            return Ok(name);
+        let meta_path = self.root.join("spools").join(format!("{name}.meta"));
+        if !path.exists() {
+            let tmp = path.with_extension("part");
+            let mut f = fs::File::create(&tmp)?;
+            f.lock()?; // exclusive while writing; released on close
+            f.write_all(data)?;
+            f.sync_all()?;
+            drop(f);
+            fs::rename(&tmp, &path)?;
         }
-        let tmp = path.with_extension("part");
-        let mut f = fs::File::create(&tmp)?;
-        f.lock()?; // exclusive while writing; released on close
-        f.write_all(data)?;
-        f.sync_all()?;
-        drop(f);
-        fs::rename(&tmp, &path)?;
+        if !meta_path.exists() {
+            // Drain-time totals (ADR-0006): counted once, here, so no
+            // resume ever rescans the spool for them. Also heals legacy
+            // spools the next time their content is re-piped.
+            let nl = data.iter().filter(|&&b| b == b'\n').count() as u64;
+            let ends_nl = data.last() == Some(&b'\n');
+            let tmp = meta_path.with_extension("meta.part");
+            let mut f = fs::File::create(&tmp)?;
+            write!(f, "bytes={}\nnl={}\nends_nl={}\n", data.len(), nl, u8::from(ends_nl))?;
+            f.sync_all()?;
+            drop(f);
+            fs::rename(&tmp, &meta_path)?;
+        }
         Ok(name)
     }
 
@@ -94,6 +137,50 @@ impl Store for FsStore {
         let mut data = Vec::new();
         (&f).read_to_end(&mut data)?;
         Ok(data)
+    }
+
+    fn spool_meta(&self, name: &str) -> io::Result<Option<SpoolMeta>> {
+        let p = self.root.join("spools").join(format!("{name}.meta"));
+        let text = match fs::read_to_string(&p) {
+            Ok(t) => t,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        let mut bytes = None;
+        let mut nl = None;
+        let mut ends_nl = None;
+        for l in text.lines() {
+            match l.split_once('=') {
+                Some(("bytes", v)) => bytes = v.parse().ok(),
+                Some(("nl", v)) => nl = v.parse().ok(),
+                Some(("ends_nl", v)) => ends_nl = v.parse::<u8>().ok().map(|x| x != 0),
+                _ => {}
+            }
+        }
+        // A corrupt sidecar is treated as absent: the legacy path is
+        // always correct, just costlier.
+        Ok(match (bytes, nl, ends_nl) {
+            (Some(bytes), Some(nl), Some(ends_nl)) => Some(SpoolMeta { bytes, nl, ends_nl }),
+            _ => None,
+        })
+    }
+
+    fn read_spool_range(&self, name: &str, start: u64, len: u64) -> io::Result<Vec<u8>> {
+        use std::io::{Seek, SeekFrom};
+        let mut f = fs::File::open(self.root.join("spools").join(name))?;
+        f.lock_shared()?;
+        f.seek(SeekFrom::Start(start))?;
+        let mut buf = vec![0u8; len as usize];
+        let mut filled = 0;
+        while filled < buf.len() {
+            let n = f.read(&mut buf[filled..])?;
+            if n == 0 {
+                break; // clamped at the spool's end
+            }
+            filled += n;
+        }
+        buf.truncate(filled);
+        Ok(buf)
     }
 
     fn put_cursor(&self, cursor: &Cursor) -> io::Result<String> {
@@ -111,6 +198,9 @@ impl Store for FsStore {
                             "spool={}\noffset={}\nline={}\npage={}\ndesk={}\n",
                             cursor.spool, cursor.offset, cursor.line, cursor.page, cursor.desk
                         )?;
+                        if let Some(nl) = cursor.nl {
+                            writeln!(f, "nl={nl}")?;
+                        }
                         f.sync_all()?;
                         return Ok(id);
                     }
@@ -132,6 +222,7 @@ impl Store for FsStore {
         let mut line = None;
         let mut page = None;
         let mut desk = String::new(); // absent in pre-desk records: tolerated
+        let mut nl = None; // absent in pre-seek records: legacy resume path
         for l in text.lines() {
             match l.split_once('=') {
                 Some(("spool", v)) => spool = Some(v.to_string()),
@@ -139,12 +230,13 @@ impl Store for FsStore {
                 Some(("line", v)) => line = v.parse().ok(),
                 Some(("page", v)) => page = v.parse().ok(),
                 Some(("desk", v)) => desk = v.to_string(),
+                Some(("nl", v)) => nl = v.parse().ok(),
                 _ => {}
             }
         }
         match (spool, offset, line, page) {
             (Some(spool), Some(offset), Some(line), Some(page)) => {
-                Ok(Cursor { spool, offset, line, page, desk })
+                Ok(Cursor { spool, offset, line, page, desk, nl })
             }
             _ => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
