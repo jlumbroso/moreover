@@ -122,6 +122,110 @@ claims anything.
 - Contributors: Ribbon 5 (rebuild, run); Lector 6 (the spec; audit pending).
 - Outcome: gate step 2 complete; implementation (step 3) may begin.
 
+#### Independent audit — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-26
+
+**Disposition: the main-corpus baseline is corroborated; the full-spec
+claim still needs correction.** I reviewed benchmark revision `3544223`
+and reran all 21 rows using the existing release binary whose SHA-256
+begins `32f07bb7fef30022`, matching the recorded fingerprint. The
+[complete rerun and full hash](../benchmarks/2026-09-26-lector-baseline-recheck.md)
+are retained. Every row completed without a reported failure or skip.
+This review concerns the measurement gate; it does not replace the
+human's seek decision or establish any after-picture result.
+
+**What is fixed.** Timer selection is separate from workload success;
+the timestamps come from one monotonic process; the GNU RSS parser reads
+the numeric field with the correct units; and each fresh sample for the
+100k-, 1M-, and 5M-line corpora uses a new state directory. Calibration,
+three-sample spreads, and missing-cursor rows are now visible. My rerun's
+early-resume medians were 12, 25, and 78 ms, with peak RSS of 4, 35, and
+176 MiB. For all three, the generated input and current paging semantics
+give the same start offset, 311 bytes, and the same 320-byte output
+(lines 11–20). Together with the whole-spool read in `src/store.rs`,
+these measurements support the saved-input-size cost that motivates seek.
+The calibration row was 6 ms; it describes overhead, not a correction
+factor to subtract from a future fast result.
+
+**1. The long-line fresh row still mixes conditions.**
+`scripts/bench-throughput.py:159–161` supplies one state directory to
+`Bench.case`, which repeats the command three times. A small probe of
+that exact call shape found no spool before the first sample and the
+same spool inode before both later samples. The reported median therefore
+combines one fresh ingestion and two repeats. Give each fresh sample its
+own state and rerun this row against the baseline binary before comparing
+it with seek. This finding does not invalidate the separate byte-resume
+row or the fresh-state loops for the three multi-line corpora.
+
+**2. Finish preserving setup failures and diagnostics.** The repeat
+spool preparation at line 140 ignores its command result; `cursor_of`
+discards the setup command's status and diagnostic. A generic "no cursor
+minted" skip makes the missing measurement visible but loses its cause.
+Timed failures also keep only the final 300 stderr characters and then
+the final line. In a native macOS probe, moreover rejected an unknown
+flag with exit 2 and `unknown argument: --lector-audit-unknown-flag`;
+the benchmark reported `FAILED exit 2: ... peak memory footprint` instead.
+The timer's statistic displaced the actual error.
+
+Check each preparation command before labeling dependent work as ready;
+retain its status and original diagnostic, and retain workload stderr
+separately from timer output. A failed preparation should leave dependent
+rows explicitly skipped with that cause. These are remaining parts of
+the adopted reporting specification; the successful rerun above does
+not exercise those failure paths.
+
+**3. Separate binary identity from checkout identity, and record exact
+workloads.** The executable hash is useful. The `built at git` value is
+obtained from the caller's checkout, however, without checking which
+revision built `--bin`. My rerun printed `3544223` for the same binary
+fingerprint the earlier run labeled `5167f9a`. Call this **checkout
+revision at run time**; record build provenance separately if it is
+known. Also identify the benchmark revision or hash, including local
+script changes: the current dirty check covers only `src` and
+`Cargo.toml`.
+
+The table rounds input sizes to MB and labels late offsets approximately.
+The exact values below are derived from the committed generator, not
+metadata emitted by the benchmark:
+
+| Corpus | Input bytes | Early resume offset | Late resume offset |
+|---|---:|---:|---:|
+| 100k lines | 3,488,895 | 311 | 3,140,005 |
+| 1M lines | 35,888,896 | 311 | 32,300,006 |
+| 5M lines | 183,888,896 | 311 | 165,500,006 |
+
+The long-line input is 10,000,001 bytes; its byte-resume starts at 100.
+The late corpus offsets fall inside lines. Record these values alongside
+the requested unit, count, overlap, actual output bytes, and state/cache
+conditions so that the before and after exercise the same work. Preserve
+the partial-line behavior when checking the seek implementation. The
+long-line `-10` case emits the entire input, and `-10 --overlap 5` includes
+overlap; neither is simply "ten lines delivered" in the same sense as
+the early-resume cases. Input files are recently written/read here; fresh
+saved state does not mean a cold operating-system cache.
+
+**Before the after-picture is published.** Correct the mixed long-line
+case, finish failure reporting, and record the missing provenance and
+workload fields. Keep or reproduce an identified baseline executable
+and run both implementations with the corrected harness. Verify expected
+page bytes and trailer/cursor behavior outside the timing interval:
+the current harness captures stdout but does not check it, so a success
+status alone cannot establish equal work. Publish the measured changes
+for those matched cases, with their sample spreads.
+
+For later graduation to an automated regression gate, failures and
+required skips must also affect the benchmark's exit status, and the
+comparison needs an explicit acceptance rule. Currently `main` returns
+success even when a row says `FAILED`; no performance threshold is
+enforced. That is a separate step from collecting a descriptive baseline.
+
+The public claim I can support now is: **"In two macOS runs, resuming
+the same 320 bytes from saved inputs of 100k, 1M, and 5M lines used
+approximately 4, 35, and 176 MiB of peak resident memory. The current
+implementation reads the entire saved input on each resume."** The
+anticipated memory reduction remains a target until the after-picture
+measures it. The earlier table remains useful evidence with the long-line
+fresh row excluded; it should not yet be described as the full spec met.
+
 ---
 
 ## Links
