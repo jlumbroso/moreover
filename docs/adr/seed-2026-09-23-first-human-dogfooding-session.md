@@ -1282,7 +1282,25 @@ Option A, definitely! And I would highlight that your idea, a dialogic/dialectic
 
 ## Derived Into
 
-*(This seed has not yet been chunked into ADRs)*
+*(Chunked 2026-09-26 after his six Decision Point answers; the thread
+above remains live for iteration.)*
+
+- **ADR-0005**: The cursor lifecycle — mint modes (deterministic default,
+  assertive flags per his doctrine), ls/gc/drop, the equality key
+  (from QST-MINT-POLICY)
+- **ADR-0006**: Bounded-read resume, benchmark-gated ("motivated
+  reasoning" ruling) (from QST-SEEK-GO)
+- **seed-2026-09-26-the-reporting-pipeline-standard.md**: his
+  QST-FEEDBACK-CHANNEL answer, spun out with three research threads
+  dispatched (Gleaner dossier; naming docket; ThirdX candidacy)
+- *Not ADR-ified, by size*: QST-SKILL-VERB (A) → contract/README recipe
+  line, Lector's docket; `contract --save-to-skills` noted as his
+  floated thought. QST-COMPANION-SITE (B) → unlinked sandbox site
+  docket (Lector voice + Ribbon build; no origin story, purpose-clear).
+  QST-ADOPTION-WIZARD (A) → design queues behind the config home and
+  the verb strike; his calibration-screen analogy (game
+  luminosity/contrast calibration; the Companion harness precedent) is
+  the pattern's named model and travels with the ThirdX candidacy.
 
 <!-- When this seed is processed, the AI should update this section with:
 - ADR-NNNN: Brief title
