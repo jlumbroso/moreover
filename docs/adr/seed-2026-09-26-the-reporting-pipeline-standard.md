@@ -127,12 +127,12 @@ assert destinations, never deltas."**
 flagged prominently at the striker's own request:
 
 ### QST-VERB-RECUT: One filing verb with kinds, or the report/feedback pair?
-- Status: unanswered — the re-cut was made at your confirm-or-strike invitation; your filing instinct outranks the striker's symmetry (their words)
+- Status: unanswered — the re-cut is the naming authority's strike (credit where the knife-work is due), made at your confirm-or-strike invitation; your filing instinct outranks their symmetry (their own words)
 - Why asking: your proposal was two verbs with a semantic split (report = breakage, feedback = enhancement). The strike re-cuts it one level up rather than confirming or killing it.
 - Need: pick a letter (or override — any shape answers)
 
 Options:
-- **A — the re-cut: one convention verb, `feedback`, with `--kind bug|wish`**: verbs split on *contract*, tags on *vocabulary* — and both filings share one contract (capture → record → route), so two verbs would gate filing behind a classification decision at the reader's moment of frustration. Your two words both survive as *organs*: `feedback` = reader→maintainer speech (the convention, `contract`'s sibling); `report` = tool→telemetry record (the standing `reports.jsonl` organ, untouched).
+- **A — the naming authority's re-cut: one convention verb, `feedback`, with `--kind bug|wish`**: verbs split on *contract*, tags on *vocabulary* — and both filings share one contract (capture → record → route), so two verbs would gate filing behind a classification decision at the reader's moment of frustration. Your two words both survive as *organs*: `feedback` = reader→maintainer speech (the convention, `contract`'s sibling); `report` = tool→telemetry record (the standing `reports.jsonl` organ, untouched).
 - **B — your original pair**: `report` and `feedback` as sibling verbs with your semantic split; the reader classifies at filing time; the two registers get first-class surfaces.
 
 **Recommendation**: (by Ribbon 5, Claude Fable 5)
