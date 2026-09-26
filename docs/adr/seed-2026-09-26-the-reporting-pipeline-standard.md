@@ -134,28 +134,65 @@ flagged prominently at the striker's own request:
 Options:
 - **A — the naming authority's re-cut: one convention verb, `feedback`, with `--kind bug|wish`**: verbs split on *contract*, tags on *vocabulary* — and both filings share one contract (capture → record → route), so two verbs would gate filing behind a classification decision at the reader's moment of frustration. Your two words both survive as *organs*: `feedback` = reader→maintainer speech (the convention, `contract`'s sibling); `report` = tool→telemetry record (the standing `reports.jsonl` organ, untouched).
 - **B — your original pair**: `report` and `feedback` as sibling verbs with your semantic split; the reader classifies at filing time; the two registers get first-class surfaces.
+- **C — the census cut** *(added same-day from Gleaner 5's field return)*: one verb `feedback` with `--kind bug|wish|note` — kind **optional and advisory** for humans, **required** for machine filers, and the *authoritative* kind set by triage as an append-only event. Grounded in a hand-labeled census of 106 distinct filings: ~69% fit bug|wish cleanly, 31% don't (questions, exhibits, follow-ups, praise, multi-kind), and about a tenth of "bugs" arrive phrased as questions — filing-time classification is largely theater for humans and cheap for models (the census's 8 model filings were its cleanest).
 
-**Recommendation**: (by Ribbon 5, Claude Fable 5)
+**Recommendation**: (by Ribbon 5, Claude Fable 5 — revised same-day;
+**this walks forward from A to C** on Gleaner 5's census, which fired
+the naming authority's own falsifier exactly as written: a real corpus
+named the third kind)
 
-**A — the re-cut.** *Rationale*: the moment-of-frustration argument is a
-field-tested one in this house (the first model filing arrived via a
-destroyed trailer — a reader in exactly the state where a
-classification gate loses filings); one verb with kinds also means the
-eventual embeddable library exposes one entry point per direction of
-speech, which is the abstraction barrier's shape. *Confidence*: 0.7 —
-because the striker's own falsifier is honest: this re-cuts *your*
-filing instinct, which outranks the symmetry, and a real filing that
-fits neither `bug` nor `wish` would name the third kind. *If wrong*:
-**B** — and nothing downstream breaks; the contract is shared either way.
+**C — the census cut.** *Rationale*: the creator-operator's 106-filing
+census settles what symmetry arguments could only guess — one verb was
+right (A's core survives), but `bug|wish` alone would misfit a third of
+real filings, and optional-advisory kind with triage-authoritative
+classification matches how triage already behaves in practice.
+*Confidence*: 0.75 — because this is the only option grounded in
+labeled field data, from the person who runs the ledger; the honest
+hole, Gleaner's own: the census has no forced-choice arm, so whether
+optional kind lowers filing quality is unmeasured. *If wrong*: if
+early standard usage shows optional kind producing unusable filings,
+tighten to required-kind (A) — the record shape doesn't change, only
+the requiredness bit.
 
 **ANS:** (by )
 [Fill this in]   <!-- literal placeholder — parser-significant, do not paraphrase -->
 
 ---
 
-*Remaining threads: Gleaner's dossier (pending); the ThirdX candidacy
-(with Cartulary). The design pass opens when the dossier and your
-letters on the re-cut land.*
+### Research thread 1 returned (Gleaner 5, same-day — recorded by Ribbon 5)
+
+The Ledger Warden answered both briefs (source of record: their two
+2026-09-26-1658 briefs in the vscode-adrs-for-ai inbox; distilled here
+publication-clean per their own gate — counts and shapes public,
+specimen quotes held pending Jérémie's confirmation, since the quoted
+specimens are his own words from private ledgers):
+
+- **Correction of record**: the standing file is **`errors.jsonl`**,
+  not `reports.jsonl` (this seed's Brain Dump keeps his dictated word
+  verbatim; the standard's design should use the corrected name).
+- **Round-trip reality** (the abstraction barrier's constraint): median
+  record 52 KB; **40% exceed GitHub's issue-body cap**; the human's own
+  words are ~0.25% of the bytes; no existing record carries an id,
+  thread, or status field. Storage-agnosticism is therefore real only
+  for a small **envelope** — the schema needs a filing id, an
+  envelope/bundle split by hash, `in_reply_to`, lifecycle as
+  append-only events, and a visibility field.
+- **The service agreement, sharpened by a live specimen**: while
+  answering, Gleaner found their own Report button had been announcing
+  "recorded" over *failed writes* — the founding scar, inside the
+  capture path itself — fixed same-day (v0.7.114, with a regression
+  test). Their resulting requirement for the standard: a **truthful
+  capture receipt is the first REQUIRED disclosure**, and conformance
+  ships as executable failing-store tests, not prose.
+
+---
+
+*Remaining threads: Gleaner's dossier and opinion — returned (above);
+the ThirdX candidacy (with Cartulary, as their ADR-0007). The design
+pass opens on your letters: QST-VERB-RECUT above, and the
+verbatim-quotes gate (may Gleaner's specimen quotes — your own words
+from private ledgers — print in public standard material? counts and
+shapes are already public here by their gate).*
 
 ---
 
