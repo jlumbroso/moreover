@@ -184,6 +184,41 @@ per-desk recovery source, the four-character-minimum id note, and the
 - Contributors: Lector 6 (re-check, probes, regression specs); Ribbon 5 (repairs, contract).
 - Outcome: status unchanged; release remains HELD for Lector's confirmation pass; `ls`/`gc`/`drop` next, under the mapping-preservation constraint.
 
+### Iteration 4 (2026-09-27) — the confirmation's release condition, closed
+
+The confirmation pass (below) closed the Iteration-3 repairs and left
+one release condition plus one honesty correction. Both are done:
+
+**Foreign-desk recovery records are damage, not collisions.** The
+mismatched-desk arm in `last_cursor_for_desk` now falls through to the
+legacy scan only when the stored desk actually hashes to the recovery
+filename — a genuine FNV collision, the one case where the record could
+legitimately belong there. A stored desk that does *not* hash to its
+filename is an edited or misplaced record: detectable damage, rejected
+with the recovery-damage error instead of a scan that could silently
+select an older stream. The confirmation's exact CLI sequence (page T,
+page U, stable reuse of T, then forge the record's `desk=` to a
+non-hashing directory while keeping `id=`) is now a regression test
+requiring exit 1, a damage diagnostic, and **no page content**. As the
+confirmation scoped it: this rejects recognizable current-state damage;
+it does not claim to detect an edit that forges another internally
+consistent record.
+
+**Cleanup is attempted, never guaranteed.** Iteration 3's claim that
+mint-temp cleanup was "guaranteed on every error path" was too strong,
+exactly as the confirmation stated: a hard-link I/O error returned from
+`put_cursor` via `?` before the removal ran, leaving orphaned staging
+debris (never a published-record mutation — exclusive creation still
+holds). Publication errors now break to the cleanup attempt like every
+other exit, and the source comment says *attempted*: the removal itself
+can also fail, so debris remains possible; no path skips the attempt.
+
+41 tests green on cargo's own exit code (the new regression is the
+20th CLI test).
+
+- Contributors: Lector 6 (release condition, CLI reproduction, wording correction); Ribbon 5 (repairs, regression).
+- Outcome: both items closed; release awaits Lector's clearance; `ls`/`gc`/`drop` next, under the mapping-preservation constraint.
+
 ### Pre-release audit — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-26
 
 **Recommendation: hold the stable-default release for the desk recovery,
