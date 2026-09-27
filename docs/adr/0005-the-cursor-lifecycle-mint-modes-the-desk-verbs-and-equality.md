@@ -402,6 +402,88 @@ negate the successful normal-path regressions. They prevent an
 unqualified release clearance for the repaired storage paths. This
 entry records the review; it makes no product-code changes.
 
+### Repair confirmation — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-27
+
+**Recommendation: retain a narrow hold for recognizable wrong-desk
+recovery damage.** Reviewed `7914897bd90a160f22f7bd8361efa9d00670fe32`.
+All 40 repository tests pass (7 unit, 19 CLI, 14 sketch). The main
+repairs are present and the contract update is now in the source and
+the printed output. One branch of the earlier damaged-record finding
+still silently selects an older stream. The temporary-cleanup issue
+below is a separate, nonblocking follow-up.
+
+**Confirmed repairs.** The retained
+[CLI confirmation probe](../../scripts/ephemeral/2026-09-27-recovery-confirmation.py)
+builds the pinned, unmodified source offline and uses owned scratch
+state. In the earlier T/U scenario, making only `desks/` unwritable
+now makes the subsequent T call exit 1 with `cursor 116k was minted`
+and the recovery-update error. Resuming that explicitly named ID with
+`--all` succeeds and returns `T3\nT4\n`. The old recovery entry still
+selects U until a successful update, but the failed call no longer
+reports success or conceals that recovery may be stale. Malformed
+recovery text, an unreadable recovery file, and a recovery entry naming
+a missing cursor all exit 1 without page content.
+
+Both staging paths now acquire their temporary file using `create_new`
+and retry occupied names. Cursor publication links the fully written,
+synced record; recovery publication renames its fully written, synced
+record. This closes the shared staging-inode and alias-truncation
+defects described in the re-check. The bounded ladder and the accepted
+identity triple are unchanged.
+
+The retained [staging confirmation probe](../../scripts/ephemeral/2026-09-27-publication-confirmation.py)
+forces an occupied temporary suffix followed by a free one in each
+path. Both retry exactly once; the occupied aliases and published
+`c2dc` remain byte-for-byte unchanged while `9rgn` is created and becomes
+the complete recovery entry. Newly owned staging files are removed.
+Only the two suffix expressions are instrumented in the pinned source;
+this demonstrates collision handling, not an observed random collision
+or a concurrent execution.
+
+The printed contract now names `--mint stable` and `--mint fresh`, the
+stable default, the three identity fields, creation-mode metadata,
+per-directory recovery, and the `cursor: null` exception. Its damage
+promise needs the remaining branch below to behave consistently.
+
+**Remaining release condition: distinguish a real desk-hash collision
+from inconsistent metadata.** At `src/store.rs:436`, any different
+stored `desk=` is classified as a hash collision and falls through to
+the legacy scan. The code does not check whether that directory could
+actually belong at this recovery filename.
+
+The CLI probe pages T, pages U, then reuses T, leaving recovery correctly
+on `116k`. It then changes only the recovery record's `desk=` to a
+different directory whose hash does **not** match the filename. The
+`id=116k` field is preserved. `-c last --all` exits 0 with `U3\nU4\n`,
+silently choosing U's `and1` through the record scan. This is controlled
+damage injection, not an observed natural hash collision; the fixture
+sets distinct T-before-U cursor mtimes to make that scan deterministic.
+
+Reject that detectable inconsistency with the recovery-damage error.
+If genuine desk-hash collisions deliberately retain the legacy
+fallback, first verify that the stored directory hashes to the same
+filename. Add a CLI regression for the sequence above requiring an
+error and no page content. This finishes the previously requested
+distinction between legacy absence and recognizable current-state
+damage; it does not require detecting arbitrary edits that happen to
+form another internally consistent record.
+
+**Nonblocking cleanup correction.** `publish(&id)?` at
+`src/store.rs:271` still returns from `put_cursor` on a hard-link I/O
+error before the temporary removal at line 295. Thus the source comment
+and Iteration 3's claim that cleanup is guaranteed on every error path
+are too strong. The operation reports an error and exclusive creation
+prevents a later writer from truncating the leftover inode: this is
+orphaned staging debris, not the earlier published-record mutation.
+Route publication errors through cleanup, and describe attempted
+cleanup accurately; filesystem removal itself can also fail.
+
+The review closes the repaired findings explicitly and preserves one
+remaining release condition. Product implementation and the accepted
+design are unchanged by this entry. Independent delegated source
+reviews by GPT-6 Astra (`contract_audit` and `post_claims`) informed the
+confirmation; the recommendation and CLI reproduction are Lector 6's.
+
 ---
 
 ## Links
