@@ -140,6 +140,123 @@ the default moves.
 - Contributors: Jérémie (rulings); Ribbon 5 (concrete design, the owed detail); Lector 6 (equality constraint, by prior analysis).
 - Outcome: `— → Accepted` (the policy); implementation pending the flag strike.
 
+### Pre-release audit — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-26
+
+**Recommendation: hold the stable-default release for the desk recovery,
+record publication, and ID-length issues below.** This reviews `0f3f128`,
+the stable-mint change after the `0.3.0` release commit; the shared package
+version alone does not identify this implementation. All 34 existing
+tests pass. The sequential replay test and the same-offset/different-page
+test establish the intended equality distinction, but do not exercise
+the collision ladder or publication window.
+
+The store probes are retained in
+[`scripts/ephemeral/2026-09-26-stable-mint-audit.rs`](../../scripts/ephemeral/2026-09-26-stable-mint-audit.rs),
+with run instructions and attribution to the delegated audit reviewer.
+They compile the actual `store.rs`, exposing its derivation function
+through a probe wrapper. They do not reimplement the hash. The desk
+result below is a CLI reproduction; the publication and full-ladder
+cases are deliberately constructed filesystem states.
+
+**1. Stable reuse breaks desk-local recovery (high priority).**
+`put_cursor` retains the first writer's `desk` while touching the shared
+record's mtime (`src/store.rs:236–243`); `last_cursor_for_desk` filters by
+that retained desk. In one scratch state directory with two working
+directories A and B, the current CLI produced:
+
+| Operation | Result |
+|---|---|
+| A pages `T1\nT2\nT3\nT4\n` with `-2` | cursor `116k` |
+| A pages `U1\nU2\nU3\nU4\n` with `-2` | cursor `and1` |
+| A runs `-c last --all` | `U3\nU4\n`, then `cursor: null` |
+| B pages the same T input with `-2` | reuses `116k` |
+| B runs `-c last --all` | exit 1: no cursors minted from B |
+| A runs `-c last --all` again | `T3\nT4\n`, then `cursor: null` |
+
+B cannot recover the cursor it just received; its use also changes A's
+recovery selection. This follows the ADR's first-writer rule, so the
+decision's claim that `last` semantics are unchanged needs resolution,
+not merely an implementation tweak. My recommendation is to retain the
+accepted global triple and track each desk's use separately. Adding
+`desk` to the identity would change the accepted equality rule. The
+regression should have both desks use the same triple and assert that
+B can recover it while A's selection remains its own most recent use.
+
+**2. A published filename is not yet a published record (high priority).**
+The successful `create_new` exposes the final name before the record's
+multiple writes and sync complete (`src/store.rs:217–228`). A stable
+contender treats an unreadable/incomplete record as a collision and
+advances the rung (`231–246`). For spool `0123456789abcdef`, offset 1,
+page 2, the controlled writer-pause fixture gives:
+
+```text
+primary candidate:                  c2dc
+same mint while primary is empty:    q147
+same mint after primary is complete: c2dc
+records for this triple:             2
+```
+
+The fixture represents the first writer paused immediately after
+`create_new`; it is not a claim that an uncontrolled thread race was
+observed. It demonstrates a reachable state in which "one record" and
+"same next-cursor" both fail. Serialize the identity lookup/publication
+or publish complete records atomically without replacing an existing
+candidate. A contender must distinguish a completed collision from an
+unfinished writer. The regression needs an interleaving at this boundary,
+with both returned IDs equal and the completed record readable.
+
+**3. The ladder can return an ID its reader rejects (medium priority).**
+The mint loop has no maximum length, while `normalize_id` rejects IDs
+longer than 16. The probe fills the candidates for lengths 4 through 16
+with valid records for another triple: 104 rung attempts. For offset 42
+it then obtains `ttz6vqqr62652vprm`, length 17. Immediate `get_cursor`
+returns `invalid cursor id`. This is a forced ladder-boundary check,
+not an estimate of ordinary collision frequency. Bound allocation to
+the accepted ID space and return an explicit exhaustion error before
+creating an unusable record, or deliberately revise the reader limit
+with matching compatibility tests. Every successful mint must round-trip
+through `get_cursor`.
+
+**The ordinary collision comparison works, with two qualifications.**
+For the same spool and page 2, offsets 754 and 1399 genuinely share the
+first candidate `7jnq`. Allocation gives `7jnq` and `283d`; replaying
+the second triple returns `283d`. The code compares all three identity
+fields and preserves the different positions. Both IDs remain four
+characters: the actual ladder tries eight rungs at each length before
+extending, whereas the decision text says each collision extends it.
+
+If the first triple's `7jnq` record is removed, minting the second triple
+again returns the now-free `7jnq`, even though its old `283d` record still
+exists. Thus the current stable-ID promise depends on earlier collision
+occupants remaining present. The forthcoming `gc`/`drop` design must
+either preserve the triple's established mapping or state this limit;
+"the same next-cursor forever" is too strong for this mechanism.
+
+**Language and coverage to finish before release.** The implementation
+uses ordinary FNV-1a over serialized fields and counters, without a
+separate hash key. Describe it as **"a deterministic hash of the triple
+and collision counters"**, rather than a keyed hash. Describe opacity
+as the rule that readers obtain IDs from the tool; the public derivation
+algorithm does not make them impossible to compute.
+
+The help names `--mint`, but `moreover contract` does not. Once the
+behavior above is settled, add both asserted modes, the stable default,
+the full identity triple, and the exhaustion exception: no mode creates
+a successor when the trailer says `cursor: null`. Describe `mode=` as
+the record's creation mode; it is not a count of later choices, since
+stable calls reuse records while fresh calls accumulate them. Reuse can
+also retain a matching fresh or legacy record's original fields.
+
+The equality key itself remains appropriate: `line` and `nl` follow from
+the immutable spool prefix, and page size, unit, and overlap do not need
+to become identity dimensions. One useful complementary test is that
+`5+15` and `10+10` converge to the same successor: different histories
+with the same spool, offset, and page ordinal should share it. The
+existing `20` versus `10+10` test correctly separates different ordinals.
+
+This is the pre-release audit and its proposed repairs. Product code,
+the accepted identity key, and the human's decisions are unchanged.
+
 ---
 
 ## Links
