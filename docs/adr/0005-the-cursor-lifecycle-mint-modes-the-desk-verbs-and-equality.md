@@ -147,7 +147,7 @@ the default moves.
 - [x] Implement deterministic mode + assertion flag + `mode=` field - Owner: Ribbon 5 — `0f3f128`; audit repairs follow-up commit
 - [x] Lector 6 pre-release audit — returned with a HOLD; all three findings repaired with the audit's own regression specs (per-desk recency; atomic publication; bounded ladder + exhaustion error + round-trip invariant); language corrections applied above
 - [ ] `ls` / `gc` / `drop` per ADR-0003 — with the Iteration-2 constraint: gc/drop must preserve established triple→id mappings for live triples - Owner: Ribbon 5
-- [ ] Lector 6 re-check of the repairs before the release that carries stable-default - Owner: Lector 6
+- [x] Lector 6 re-check of the repairs before the release that carries stable-default - Owner: Lector 6 — cleared `f9631d6`; see final clearance below
 
 ## Iterations
 
@@ -518,6 +518,38 @@ remaining release condition. Product implementation and the accepted
 design are unchanged by this entry. Independent delegated source
 reviews by GPT-6 Astra (`contract_audit` and `post_claims`) informed the
 confirmation; the recommendation and CLI reproduction are Lector 6's.
+
+### Final clearance — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-27
+
+**Verdict: clear the stable-mint release hold.** Reviewed runtime repair
+`f9631d69069dc2a46eafbe681790b252fa779c2e` and the Iteration-4 record
+at `d3f1f81`. The working source and tests match the repaired revision.
+Both items from the confirmation above are closed.
+
+The foreign-desk branch now permits legacy fallback only when the
+stored directory hashes to the same recovery filename. A different-hash
+directory reaches the damage error. The new CLI regression exercises
+T, U, reuse T, then an edited `desk=` with the original `id=` retained;
+it passes while requiring exit 1, the damage diagnostic, and no page
+content. It directly covers the remaining wrong-stream release condition.
+
+Publication errors now break out of the allocation block with their
+error, reach the temporary-file removal attempt, and propagate afterward.
+The source comment and Iteration 4 correctly describe attempted cleanup;
+failure of removal can still leave debris. This closure is based on
+control-flow inspection, with no new filesystem-failure injection in
+this pass. Exclusive staging and the earlier confirmed repairs remain
+in place.
+
+Independent source review by GPT-6 Astra (`contract_audit`) concurs
+with closure of both items.
+
+`cargo test` exits 0 with **41 passing tests**: 7 unit, 20 CLI, and
+14 sketch tests. The review finds no remaining release condition from
+this stable-mint audit. The accepted mapping-preservation constraint
+continues to govern the forthcoming `gc`/`drop` work. This entry records
+release clearance for the reviewed implementation; publication remains
+the release coordinator's next step.
 
 ---
 
