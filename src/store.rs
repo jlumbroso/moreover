@@ -197,61 +197,95 @@ impl Store for FsStore {
     }
 
     fn put_cursor(&self, cursor: &Cursor, mode: MintMode) -> io::Result<String> {
-        // Short ids collide eventually; create_new makes the mint atomic
-        // and we grow the id one character per retry round (the ladder).
-        // Stable mode (ADR-0005): the id is derived from the identity
-        // triple (spool, offset, page); an existing record is REUSED iff
-        // its triple matches (idempotent mint — a million identical
-        // resumes cost one file), else the ladder extends the id
-        // deterministically. The id stays opaque: derivation is a
-        // storage property, not a legibility one.
-        let mut len = 4;
+        // Publication is ATOMIC (pre-release audit, finding 2): the
+        // record is fully written and synced to a temp file, then
+        // hard-linked to its final id — a contender never observes a
+        // named-but-empty record, so "one record per triple" and "same
+        // next-cursor" hold across the old publication window. Stable
+        // mode derives the id from the identity triple with a
+        // deterministic hash; an existing record is REUSED iff its
+        // triple matches; a mismatched or unreadable occupant (legacy
+        // debris) climbs the ladder. The ladder is BOUNDED to the id
+        // space readers accept (finding 3): lengths 4..=16, eight rungs
+        // each, then an explicit exhaustion error — every successful
+        // mint round-trips through get_cursor. Desk recency is tracked
+        // per-desk in `desks/` (finding 1), never by touching the shared
+        // record, so one desk's reuse cannot disturb another's recovery.
+        let mut record = format!(
+            "spool={}\noffset={}\nline={}\npage={}\ndesk={}\n",
+            cursor.spool, cursor.offset, cursor.line, cursor.page, cursor.desk
+        );
+        if let Some(nl) = cursor.nl {
+            record.push_str(&format!("nl={nl}\n"));
+        }
+        record.push_str(if mode == MintMode::Stable { "mode=stable\n" } else { "mode=fresh\n" });
+
+        let tmp = self
+            .root
+            .join("cursors")
+            .join(format!(".mint-{}-{}", std::process::id(), mint_id(6)));
+        let mut f = fs::File::create(&tmp)?;
+        f.write_all(record.as_bytes())?;
+        f.sync_all()?;
+        drop(f);
+        let publish = |id: &str| -> io::Result<bool> {
+            match fs::hard_link(&tmp, self.root.join("cursors").join(id)) {
+                Ok(()) => Ok(true),
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(false),
+                Err(e) => Err(e),
+            }
+        };
+
         let mut rung: u64 = 0;
-        loop {
-            for _ in 0..8 {
-                let id = match mode {
-                    MintMode::Fresh => mint_id(len),
-                    MintMode::Stable => derive_id(cursor, len, rung),
-                };
-                let path = self.root.join("cursors").join(&id);
-                match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
-                    Ok(mut f) => {
-                        write!(
-                            f,
-                            "spool={}\noffset={}\nline={}\npage={}\ndesk={}\n",
-                            cursor.spool, cursor.offset, cursor.line, cursor.page, cursor.desk
-                        )?;
-                        if let Some(nl) = cursor.nl {
-                            writeln!(f, "nl={nl}")?;
-                        }
-                        writeln!(f, "mode={}", if mode == MintMode::Stable { "stable" } else { "fresh" })?;
-                        f.sync_all()?;
-                        return Ok(id);
+        let result = 'mint: {
+            for len in 4..=16usize {
+                for _ in 0..8 {
+                    let id = match mode {
+                        MintMode::Fresh => mint_id(len),
+                        MintMode::Stable => derive_id(cursor, len, rung),
+                    };
+                    if publish(&id)? {
+                        break 'mint Ok(id);
                     }
-                    Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-                        if mode == MintMode::Stable {
-                            // same triple → reuse (touch so `-c last`
-                            // tracks actual use); different triple → a
-                            // real collision: climb the ladder.
-                            if let Ok(existing) = self.get_cursor(&id) {
-                                if existing.spool == cursor.spool
-                                    && existing.offset == cursor.offset
-                                    && existing.page == cursor.page
-                                {
-                                    let f = fs::OpenOptions::new().append(true).open(&path)?;
-                                    f.set_modified(std::time::SystemTime::now())?;
-                                    return Ok(id);
-                                }
+                    if mode == MintMode::Stable {
+                        // occupant is complete by construction when ours;
+                        // legacy debris may be unreadable → ladder.
+                        if let Ok(existing) = self.get_cursor(&id) {
+                            if existing.spool == cursor.spool
+                                && existing.offset == cursor.offset
+                                && existing.page == cursor.page
+                            {
+                                break 'mint Ok(id);
                             }
-                            rung += 1;
                         }
-                        continue;
+                        rung += 1;
                     }
-                    Err(e) => return Err(e),
                 }
             }
-            len += 1;
+            Err(io::Error::other(
+                "cursor id space exhausted for this position — the state \
+                 dir holds too many colliding records; clear old cursors \
+                 and retry",
+            ))
+        };
+        let _ = fs::remove_file(&tmp);
+        let id = result?;
+
+        // per-desk recency (finding 1): the caller's desk records its
+        // own last use; the shared record is never modified.
+        if !cursor.desk.is_empty() {
+            let dpath = self.root.join("desks").join(format!("{:016x}", fnv1a64(cursor.desk.as_bytes())));
+            let dtmp = dpath.with_extension("part");
+            if fs::create_dir_all(self.root.join("desks")).is_ok() {
+                if let Ok(mut df) = fs::File::create(&dtmp) {
+                    let _ = write!(df, "desk={}\nid={}\n", cursor.desk, id);
+                    let _ = df.sync_all();
+                    drop(df);
+                    let _ = fs::rename(&dtmp, &dpath);
+                }
+            }
         }
+        Ok(id)
     }
 
     fn get_cursor(&self, id: &str) -> io::Result<Cursor> {
@@ -289,12 +323,35 @@ impl Store for FsStore {
 }
 
 impl FsStore {
-    /// The newest cursor minted from `desk` — `-c last`'s resolver
-    /// (ADR-0003; shipped on first-contact field evidence: the likeliest
-    /// first failure, a destroyed trailer, had no in-band recovery).
-    /// Scoped to the desk so "my last" never resumes a concurrent
-    /// reader's stream; pre-desk records (no desk field) never match.
+    /// The newest cursor MINTED OR REUSED from `desk` — `-c last`'s
+    /// resolver (ADR-0003; shipped on first-contact field evidence).
+    /// Primary source: the per-desk recency file (audit finding 1 —
+    /// under stable minting a record's stored desk is its FIRST
+    /// writer's, so desk recovery must never route through the shared
+    /// record). Fallback for pre-upgrade state: the record scan.
     pub fn last_cursor_for_desk(&self, desk: &str) -> io::Result<Option<String>> {
+        if desk.is_empty() {
+            return Ok(None);
+        }
+        let dpath = self.root.join("desks").join(format!("{:016x}", fnv1a64(desk.as_bytes())));
+        if let Ok(text) = fs::read_to_string(&dpath) {
+            let mut d = None;
+            let mut id = None;
+            for l in text.lines() {
+                match l.split_once('=') {
+                    Some(("desk", v)) => d = Some(v.to_string()),
+                    Some(("id", v)) => id = Some(v.to_string()),
+                    _ => {}
+                }
+            }
+            if let (Some(d), Some(id)) = (d, id) {
+                // hash-collision guard + staleness guard (record may be gone)
+                if d == desk && self.get_cursor(&id).is_ok() {
+                    return Ok(Some(id));
+                }
+            }
+        }
+        // legacy fallback: scan records by their stored (first-writer) desk
         let mut best: Option<(std::time::SystemTime, String)> = None;
         for entry in fs::read_dir(self.root.join("cursors"))? {
             let entry = entry?;
@@ -306,7 +363,7 @@ impl FsStore {
                 Ok(c) => c,
                 Err(_) => continue, // a corrupt record shouldn't break `last`
             };
-            if cursor.desk != desk || desk.is_empty() {
+            if cursor.desk != desk {
                 continue;
             }
             let mtime = entry.metadata()?.modified()?;
@@ -419,6 +476,46 @@ fn fnv1a64(data: &[u8]) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stable_ladder_is_bounded_and_exhaustion_is_explicit() {
+        // Pre-release audit, finding 3: the unbounded ladder could mint
+        // a 17-char id that normalize_id then rejects — a record its own
+        // reader refuses. The ladder is now capped to the accepted id
+        // space (4..=16), and running it dry is an explicit error, never
+        // an unusable record. This occupies every candidate the way the
+        // audit's probe did: valid records for a DIFFERENT triple.
+        let dir = std::env::temp_dir().join(format!("moreover-ladder-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let store = FsStore::open(dir.clone()).unwrap();
+        let target = Cursor {
+            spool: "0123456789abcdef".into(),
+            offset: 42,
+            line: 0,
+            page: 2,
+            desk: String::new(),
+            nl: Some(0),
+        };
+        let decoy = "spool=ffffffffffffffff\noffset=9\nline=0\npage=9\ndesk=\nnl=0\nmode=stable\n";
+        let mut occupied = 0;
+        let mut rung = 0u64;
+        for len in 4..=16usize {
+            for _ in 0..8 {
+                let id = derive_id(&target, len, rung);
+                let p = dir.join("cursors").join(&id);
+                if !p.exists() {
+                    fs::write(&p, decoy).unwrap();
+                }
+                occupied += 1;
+                rung += 1;
+            }
+        }
+        assert_eq!(occupied, 104);
+        let err = store.put_cursor(&target, MintMode::Stable).unwrap_err();
+        assert!(err.to_string().contains("exhausted"), "got: {err}");
+        // and no unusable record was left behind for the target triple
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn cursor_ids_read_case_insensitively_with_crockford_folds() {

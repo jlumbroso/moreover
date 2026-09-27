@@ -393,6 +393,51 @@ fn c_last_remains_selectable_after_exhaustion_and_complete_new_input() {
 }
 
 #[test]
+fn stable_reuse_across_desks_keeps_each_desks_recovery_intact() {
+    // Regression for the pre-release audit's finding 1, reproducing its
+    // exact table: under stable minting, desk B paging the same content
+    // as desk A REUSES A's record (first-writer desk retained) — and in
+    // the broken version, B then had no `-c last` recovery while B's
+    // touch also hijacked A's selection. Per-desk recency files fix
+    // both: each desk recovers its OWN most recent use.
+    let state = scratch_dir("stabledesk");
+    let desk_a = scratch_dir("stabledesk-a");
+    let desk_b = scratch_dir("stabledesk-b");
+    let t_doc = desk_a.join("t.txt");
+    let u_doc = desk_a.join("u.txt");
+    std::fs::write(&t_doc, b"T1\nT2\nT3\nT4\n").unwrap();
+    std::fs::write(&u_doc, b"U1\nU2\nU3\nU4\n").unwrap();
+
+    let page = |dir: &PathBuf, args: &[&str]| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
+        cmd.args(args)
+            .current_dir(dir)
+            .env("MOREOVER_STATE_DIR", &state)
+            .env_remove("MOREOVER_TRAILER")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        cmd.output().unwrap()
+    };
+
+    assert!(page(&desk_a, &[t_doc.to_str().unwrap(), "-2"]).status.success());
+    assert!(page(&desk_a, &[u_doc.to_str().unwrap(), "-2"]).status.success());
+    // B pages the same T content: stable minting reuses A's record
+    assert!(page(&desk_b, &[t_doc.to_str().unwrap(), "-2"]).status.success());
+
+    // B recovers the cursor it was just handed (the audit's failing row)
+    let b_last = page(&desk_b, &["-c", "last", "--all"]);
+    assert!(b_last.status.success(), "{}", String::from_utf8_lossy(&b_last.stderr));
+    assert_eq!(b_last.stdout, b"T3\nT4\n");
+
+    // and A's own recovery is undisturbed by B's activity: A's most
+    // recent use is still U
+    let a_last = page(&desk_a, &["-c", "last", "--all"]);
+    assert!(a_last.status.success(), "{}", String::from_utf8_lossy(&a_last.stderr));
+    assert_eq!(a_last.stdout, b"U3\nU4\n");
+}
+
+#[test]
 fn unknown_cursor_error_is_written_to_the_reader() {
     let state = scratch_dir("nocursor");
     let out = run(&state, &["-c", "zz9q", "--all"], None);

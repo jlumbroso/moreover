@@ -3,8 +3,8 @@
 # ADR-0005: The cursor lifecycle — mint modes, the desk verbs, and equality
 
 - **Date**: 2026-09-26
-- **Iteration**: 1
-- **Status**: Accepted
+- **Iteration**: 2
+- **Status**: Partially Implemented
 - **Deciders**: Jérémie Lumbroso (rulings, from the dogfooding seed's QST-MINT-POLICY answer); Ribbon 5 (this record, the concrete design); Lector 6 (the equality analysis this ADR must satisfy)
 
 **TL;DR**: Cursor minting becomes a switchable mode — deterministic ids
@@ -58,23 +58,33 @@ touches the frozen trailer grammar returns to Jérémie.
   satisfied by construction: distinct paging histories meeting at one
   offset differ in page ordinal and therefore keep distinct records, so
   the trailer's `page N` stays exactly truthful.
-- **Id derivation**: the printed id is a 4-character Crockford base-32
-  rendering of a keyed hash over the triple (same alphabet, same
-  mixed-letter-digit guarantee as random minting — derived candidates
-  that come out all-digit or all-letter are re-hashed with a counter
-  until mixed, deterministically). The id remains opaque to the reader:
-  nothing about it is extrapolable, preserving the petname doctrine —
-  determinism is a *storage* property, not a *legibility* one.
+- **Id derivation** *(wording corrected at Iteration 2, per the
+  pre-release audit)*: the printed id is a 4-character Crockford base-32
+  rendering of **a deterministic hash of the triple and collision
+  counters** (ordinary FNV-1a over serialized fields — there is no
+  separate hash key; same alphabet, same mixed-letter-digit guarantee,
+  with all-digit/all-letter candidates re-hashed deterministically).
+  Opacity means what the petname doctrine means: **readers obtain ids
+  from the tool** — the public derivation does not make them impossible
+  to compute, and never needs to.
 - **Record files**: unchanged format (`spool=`, `offset=`, `line=`,
   `page=`, `desk=`, plus `mode=stable`), one file per triple, created
   with `create_new`. A repeat resume finds the file already present:
   verify its contents match the triple; on match, reuse silently (this
-  is the idempotency working); on mismatch (a 20-bit collision between
-  different triples), extend the id one character and retry — the same
-  collision ladder random minting already uses.
-- **The `desk` field on reuse**: first-writer wins; the record keeps its
-  original mint desk. `-c last` semantics are unchanged (newest matching
-  record by mtime; reuse refreshes mtime so "last" tracks actual use).
+  is the idempotency working); on mismatch (a collision between
+  different triples) or an unreadable occupant (legacy debris), climb
+  the ladder — eight rungs per length, lengths 4 through 16 (the id
+  space readers accept), then an explicit exhaustion error; a mint that
+  cannot round-trip through the reader is never created. Publication is
+  atomic (write-then-hard-link): a contender never observes a
+  named-but-incomplete record. *(Corrected and hardened at Iteration 2.)*
+- **Desk recency** *(redesigned at Iteration 2 — the audit's finding 1
+  showed first-writer desk + shared-record mtime broke one desk's
+  recovery and disturbed another's)*: the shared record keeps its first
+  writer's desk and is never modified on reuse; each desk's own uses are
+  tracked in per-desk recency files (`desks/`), which `-c last` reads
+  first (legacy record-scan as fallback). One desk's activity can no
+  longer affect another's recovery.
 - **Fresh mode**: exactly today's behavior (random mint per resume),
   selected by assertion; records carry `mode=fresh`.
 
@@ -99,6 +109,11 @@ compete (his QST answer's own observation).
 
 - A reader replaying its transcript sees the *same* next-cursor for the
   same resume — divergence in the record now means divergence in fact.
+  *(Bounded claim, per the audit: the triple→id mapping under collision
+  depends on earlier collision occupants remaining present — so the
+  forthcoming `gc`/`drop` design must preserve established mappings for
+  live triples, or this claim weakens to "the same next-cursor while
+  the state dir is intact." Staked as a hard constraint on the verbs.)*
 - The million-identical-calls cost becomes one record file.
 - The mode choice is observable data for the ThirdX question he raised
   (which minting matches model intrinsic preference) — records carry
@@ -128,10 +143,11 @@ the default moves.
 
 ## Action Items
 
-- [ ] Naming authority strike on the mode flags - Owner: Ribbon 5 (docket), naming authority (strike)
-- [ ] Implement deterministic mode + assertion flag + `mode=` field, tests incl. the collision ladder and the replay-idempotency property - Owner: Ribbon 5
-- [ ] `ls` / `gc` / `drop` per ADR-0003 - Owner: Ribbon 5
-- [ ] Lector 6 audit invited on the derivation/collision design before release - Owner: Lector 6
+- [x] Naming authority strike on the mode flags — struck same-day (`--mint stable|fresh`; "Flags assert destinations, never deltas")
+- [x] Implement deterministic mode + assertion flag + `mode=` field - Owner: Ribbon 5 — `0f3f128`; audit repairs follow-up commit
+- [x] Lector 6 pre-release audit — returned with a HOLD; all three findings repaired with the audit's own regression specs (per-desk recency; atomic publication; bounded ladder + exhaustion error + round-trip invariant); language corrections applied above
+- [ ] `ls` / `gc` / `drop` per ADR-0003 — with the Iteration-2 constraint: gc/drop must preserve established triple→id mappings for live triples - Owner: Ribbon 5
+- [ ] Lector 6 re-check of the repairs before the release that carries stable-default - Owner: Lector 6
 
 ## Iterations
 
@@ -139,6 +155,12 @@ the default moves.
 - Trigger: QST-MINT-POLICY answered in the dogfooding seed; chunked here at his request.
 - Contributors: Jérémie (rulings); Ribbon 5 (concrete design, the owed detail); Lector 6 (equality constraint, by prior analysis).
 - Outcome: `— → Accepted` (the policy); implementation pending the flag strike.
+
+### Iteration 2 (2026-09-27)
+- Trigger: Lector 6's pre-release audit (below, 2026-09-26) — a HOLD with three findings, each demonstrated by probes compiled against the real store (`scripts/ephemeral/2026-09-26-stable-mint-audit.rs`).
+- Contributors: Lector 6 (audit, probes, regression specs, language corrections); Ribbon 5 (repairs).
+- Changes: per-desk recency files replace shared-record mtime (finding 1 — the audit's exact failure table is now a CLI regression test); publication made atomic via write-then-hard-link (finding 2 — the named-but-empty window is closed; the legacy-debris form is a deterministic-ladder regression test); the ladder bounded to the reader's id space with an explicit exhaustion error and an in-module 104-rung regression (finding 3); every-mint-round-trips invariant asserted; "keyed hash" and opacity wording corrected; the gc/drop mapping-preservation constraint staked; the convergence test (5+15 ≡ 10+10) added.
+- Outcome: `Accepted → Partially Implemented`; release still HELD pending Lector's re-check; `ls`/`gc`/`drop` remain.
 
 ### Pre-release audit — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-26
 

@@ -216,6 +216,57 @@ fn stable_minting_is_idempotent_and_keyed_on_the_full_triple() {
     let f1 = page_resume(&store, &id, Take::Units(10), Unit::Lines, 0, MintMode::Fresh, &mut s1).unwrap();
     let f2 = page_resume(&store, &id, Take::Units(10), Unit::Lines, 0, MintMode::Fresh, &mut s2).unwrap();
     assert_ne!(f1.cursor.unwrap(), f2.cursor.unwrap());
+
+    // every successful mint round-trips through get_cursor (audit,
+    // finding 3's invariant)
+    for nid in &next_ids {
+        store.get_cursor(nid).expect("a minted id its own reader rejects is a defect");
+    }
+}
+
+#[test]
+fn stable_histories_converging_on_the_same_triple_share_the_successor() {
+    // The audit's complementary equality test: 5+15 and 10+10 both land
+    // at (spool, offset-of-line-20, page 3) — different histories, same
+    // identity triple, same successor id.
+    let store = scratch_store("converge");
+    let input = numbered_lines(40);
+
+    let mut sink = Vec::new();
+    let a1 = page_new(&store, &input, Take::Units(5), Unit::Lines, MintMode::Stable, &mut sink).unwrap();
+    let a2 = page_resume(&store, a1.cursor.as_ref().unwrap(), Take::Units(15), Unit::Lines, 0, MintMode::Stable, &mut sink).unwrap();
+    let b1 = page_new(&store, &input, Take::Units(10), Unit::Lines, MintMode::Stable, &mut sink).unwrap();
+    let b2 = page_resume(&store, b1.cursor.as_ref().unwrap(), Take::Units(10), Unit::Lines, 0, MintMode::Stable, &mut sink).unwrap();
+    assert_eq!(a2.cursor.unwrap(), b2.cursor.unwrap(), "same (spool, offset, page) must share one record");
+}
+
+#[test]
+fn unreadable_debris_at_a_stable_candidate_climbs_the_ladder_deterministically() {
+    // The audit's publication-window class, as its reachable legacy
+    // form: an empty (crash-truncated) file squatting on a stable
+    // candidate. Publication is atomic now, so the tool can't create
+    // this state itself — but it must survive finding it: the mint
+    // climbs the ladder, deterministically, and the result round-trips.
+    let store = scratch_store("debris");
+    let input = numbered_lines(20);
+
+    let mut sink = Vec::new();
+    let t1 = page_new(&store, &input, Take::Units(10), Unit::Lines, MintMode::Stable, &mut sink).unwrap();
+    let honest = t1.cursor.unwrap();
+
+    // simulate the debris: destroy the record, squat its name with 0 bytes
+    let path = store.root().join("cursors").join(&honest);
+    std::fs::write(&path, b"").unwrap();
+
+    let mut s2 = Vec::new();
+    let r2 = page_new(&store, &input, Take::Units(10), Unit::Lines, MintMode::Stable, &mut s2).unwrap();
+    let laddered = r2.cursor.unwrap();
+    assert_ne!(laddered, honest, "an unreadable occupant must not be reused");
+    store.get_cursor(&laddered).expect("laddered id must round-trip");
+
+    let mut s3 = Vec::new();
+    let r3 = page_new(&store, &input, Take::Units(10), Unit::Lines, MintMode::Stable, &mut s3).unwrap();
+    assert_eq!(r3.cursor.unwrap(), laddered, "the ladder is deterministic given the same debris");
 }
 
 #[test]
