@@ -9,7 +9,7 @@
 use std::io::{self, Write};
 
 use crate::chunker::{advance, retreat, total_units, Unit};
-use crate::store::{Cursor, SpoolMeta, Store};
+use crate::store::{Cursor, MintMode, SpoolMeta, Store};
 use crate::trailer::TrailerData;
 
 /// What the caller asked for: a sized page or everything remaining.
@@ -32,10 +32,11 @@ pub fn page_new(
     input: &[u8],
     take: Take,
     unit: Unit,
+    mode: MintMode,
     out: &mut dyn Write,
 ) -> io::Result<TrailerData> {
     let spool = store.put_spool(input)?;
-    deliver_in_memory(store, &spool, input, 0, 1, take, unit, out)
+    deliver_in_memory(store, &spool, input, 0, 1, take, unit, mode, out)
 }
 
 /// Resume from a cursor minted by an earlier invocation. With
@@ -48,12 +49,13 @@ pub fn page_resume(
     take: Take,
     unit: Unit,
     overlap: usize,
+    mode: MintMode,
     out: &mut dyn Write,
 ) -> io::Result<TrailerData> {
     let cursor = store.get_cursor(cursor_id)?;
     match (store.spool_meta(&cursor.spool)?, cursor.nl) {
         (Some(meta), Some(nl0)) => {
-            resume_bounded(store, &cursor, meta, nl0, take, unit, overlap, out)
+            resume_bounded(store, &cursor, meta, nl0, take, unit, overlap, mode, out)
         }
         _ => {
             // Legacy record or legacy spool: whole-read path.
@@ -63,7 +65,7 @@ pub fn page_resume(
                 let back = retreat(&data, start, overlap, unit);
                 out.write_all(&data[back..start])?;
             }
-            deliver_in_memory(store, &cursor.spool, &data, start, cursor.page, take, unit, out)
+            deliver_in_memory(store, &cursor.spool, &data, start, cursor.page, take, unit, mode, out)
         }
     }
 }
@@ -80,6 +82,7 @@ fn deliver_in_memory(
     page: u64,
     take: Take,
     unit: Unit,
+    mode: MintMode,
     out: &mut dyn Write,
 ) -> io::Result<TrailerData> {
     let start = start.min(data.len());
@@ -92,7 +95,7 @@ fn deliver_in_memory(
     let total = total_units(data, unit);
     let shown = total_units(&data[..end], unit);
     let partial_at_end = end > 0 && data[end - 1] != b'\n';
-    let cursor = mint_next(store, spool, data.len(), end, count_nl(&data[..end]), partial_at_end, page)?;
+    let cursor = mint_next(store, spool, data.len(), end, count_nl(&data[..end]), partial_at_end, page, mode)?;
     Ok(TrailerData { page, shown, total, unit, cursor, all: matches!(take, Take::All) })
 }
 
@@ -108,6 +111,7 @@ fn resume_bounded(
     take: Take,
     unit: Unit,
     overlap: usize,
+    mode: MintMode,
     out: &mut dyn Write,
 ) -> io::Result<TrailerData> {
     let spool = &cursor.spool;
@@ -213,7 +217,7 @@ fn resume_bounded(
         ),
     };
 
-    let next = mint_next(store, spool, b as usize, end as usize, nl_end as usize, partial, cursor.page)?;
+    let next = mint_next(store, spool, b as usize, end as usize, nl_end as usize, partial, cursor.page, mode)?;
     Ok(TrailerData {
         page: cursor.page,
         shown,
@@ -236,6 +240,7 @@ fn mint_next(
     nl_through_end: usize,
     partial_at_end: bool,
     page: u64,
+    mode: MintMode,
 ) -> io::Result<Option<String>> {
     if end >= spool_len {
         return Ok(None);
@@ -247,7 +252,7 @@ fn mint_next(
         page: page + 1,
         desk: std::env::current_dir().map(|p| p.display().to_string()).unwrap_or_default(),
         nl: Some(nl_through_end as u64),
-    })?))
+    }, mode)?))
 }
 
 fn count_nl(data: &[u8]) -> usize {

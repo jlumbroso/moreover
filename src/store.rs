@@ -50,6 +50,18 @@ impl SpoolMeta {
     }
 }
 
+/// Cursor-minting policy (ADR-0005): `Stable` derives the id from
+/// (spool, offset, page) — the same resume repeated yields the same
+/// next-cursor forever, and a million identical calls cost one record.
+/// `Fresh` mints a random id per resume. Selected by assertive flags
+/// ("flags assert destinations, never deltas"); stable is the built-in
+/// default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MintMode {
+    Stable,
+    Fresh,
+}
+
 pub trait Store {
     /// Persist a fully drained stream; returns the spool's name.
     fn put_spool(&self, data: &[u8]) -> io::Result<String>;
@@ -61,10 +73,11 @@ pub trait Store {
     /// spool's end — the primitive that makes resume cost proportional
     /// to what was requested.
     fn read_spool_range(&self, name: &str, start: u64, len: u64) -> io::Result<Vec<u8>>;
-    /// Persist a position; returns its freshly minted base-32 id.
-    /// Cursors are immutable — resuming never rewrites one, it mints the
-    /// next position's id, so re-reading a cursor is idempotent.
-    fn put_cursor(&self, cursor: &Cursor) -> io::Result<String>;
+    /// Persist a position; returns its base-32 id (derived or random,
+    /// per `mode`). Cursors are immutable — resuming never rewrites one,
+    /// it mints the next position's id, so re-reading a cursor is
+    /// idempotent; under `Stable`, minting itself is idempotent too.
+    fn put_cursor(&self, cursor: &Cursor, mode: MintMode) -> io::Result<String>;
     fn get_cursor(&self, id: &str) -> io::Result<Cursor>;
 }
 
@@ -183,13 +196,23 @@ impl Store for FsStore {
         Ok(buf)
     }
 
-    fn put_cursor(&self, cursor: &Cursor) -> io::Result<String> {
+    fn put_cursor(&self, cursor: &Cursor, mode: MintMode) -> io::Result<String> {
         // Short ids collide eventually; create_new makes the mint atomic
-        // and we grow the id one character per retry round.
+        // and we grow the id one character per retry round (the ladder).
+        // Stable mode (ADR-0005): the id is derived from the identity
+        // triple (spool, offset, page); an existing record is REUSED iff
+        // its triple matches (idempotent mint — a million identical
+        // resumes cost one file), else the ladder extends the id
+        // deterministically. The id stays opaque: derivation is a
+        // storage property, not a legibility one.
         let mut len = 4;
+        let mut rung: u64 = 0;
         loop {
             for _ in 0..8 {
-                let id = mint_id(len);
+                let id = match mode {
+                    MintMode::Fresh => mint_id(len),
+                    MintMode::Stable => derive_id(cursor, len, rung),
+                };
                 let path = self.root.join("cursors").join(&id);
                 match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
                     Ok(mut f) => {
@@ -201,10 +224,29 @@ impl Store for FsStore {
                         if let Some(nl) = cursor.nl {
                             writeln!(f, "nl={nl}")?;
                         }
+                        writeln!(f, "mode={}", if mode == MintMode::Stable { "stable" } else { "fresh" })?;
                         f.sync_all()?;
                         return Ok(id);
                     }
-                    Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+                    Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                        if mode == MintMode::Stable {
+                            // same triple → reuse (touch so `-c last`
+                            // tracks actual use); different triple → a
+                            // real collision: climb the ladder.
+                            if let Ok(existing) = self.get_cursor(&id) {
+                                if existing.spool == cursor.spool
+                                    && existing.offset == cursor.offset
+                                    && existing.page == cursor.page
+                                {
+                                    let f = fs::OpenOptions::new().append(true).open(&path)?;
+                                    f.set_modified(std::time::SystemTime::now())?;
+                                    return Ok(id);
+                                }
+                            }
+                            rung += 1;
+                        }
+                        continue;
+                    }
                     Err(e) => return Err(e),
                 }
             }
@@ -280,6 +322,36 @@ impl FsStore {
 /// case-insensitively). Generation uses the lowercase alphabet; reading
 /// folds case and the Crockford confusables (o→0, i/l→1).
 const ALPHABET: &[u8] = b"0123456789abcdefghjkmnpqrstvwxyz";
+
+/// Stable-mode id derivation (ADR-0005): a keyed hash over the identity
+/// triple, rendered in the same alphabet with the same mixed
+/// letter+digit guarantee as random minting — candidates that come out
+/// all-digit or all-letter are re-hashed with a counter, deterministically,
+/// so replaying a mint always lands on the same id.
+fn derive_id(cursor: &Cursor, len: usize, rung: u64) -> String {
+    let mut salt: u64 = 0;
+    loop {
+        let key = format!("{}\x1f{}\x1f{}\x1f{}\x1f{}", cursor.spool, cursor.offset, cursor.page, rung, salt);
+        let mut h = fnv1a64(key.as_bytes());
+        let id: String = (0..len)
+            .map(|_| {
+                let c = ALPHABET[(h % 32) as usize] as char;
+                h /= 32;
+                // re-mix so ids longer than 12 chars don't run dry
+                if h < 32 {
+                    h = fnv1a64(&h.to_le_bytes());
+                }
+                c
+            })
+            .collect();
+        let has_digit = id.bytes().any(|b| b.is_ascii_digit());
+        let has_letter = id.bytes().any(|b| b.is_ascii_alphabetic());
+        if has_digit && has_letter {
+            return id;
+        }
+        salt += 1;
+    }
+}
 
 fn mint_id(len: usize) -> String {
     // Ids must mix at least one letter and one digit: an all-digit id

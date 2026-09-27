@@ -14,7 +14,7 @@ use std::process::ExitCode;
 
 use moreover::chunker::Unit;
 use moreover::paging::{page_new, page_resume, Take};
-use moreover::store::FsStore;
+use moreover::store::{FsStore, MintMode};
 use moreover::trailer::{lookup, render_with};
 
 const USAGE: &str = "\
@@ -38,6 +38,9 @@ Resumption:
                         never invent or extrapolate one)
   -c last               select the newest saved cursor for this working
                         directory in the selected state directory
+  --mint stable|fresh   cursor-id policy, asserted (default: stable —
+                        the same resume repeated yields the same next
+                        cursor; fresh mints a new id every time)
 
 State:
   --state-dir PATH      spool/cursor store (default: $MOREOVER_STATE_DIR,
@@ -224,6 +227,7 @@ struct Args {
     cursor: Option<String>,
     input_file: Option<PathBuf>,
     overlap: usize,
+    mint: MintMode,
     trailer_dest: Option<TrailerDest>,
     state_dir: Option<PathBuf>,
     schema: String,
@@ -260,6 +264,7 @@ fn parse_args(argv: &[String]) -> Result<Parsed, String> {
         cursor: None,
         input_file: None,
         overlap: 0,
+        mint: MintMode::Stable,
         trailer_dest: None,
         state_dir: None,
         schema: "v0".to_string(),
@@ -292,6 +297,13 @@ fn parse_args(argv: &[String]) -> Result<Parsed, String> {
                 args.overlap = want(a)?.parse().map_err(|_| format!("bad count for {a}"))?;
             }
             "-c" | "--cursor" => args.cursor = Some(want(a)?),
+            "--mint" => {
+                args.mint = match want(a)?.as_str() {
+                    "stable" => MintMode::Stable,
+                    "fresh" => MintMode::Fresh,
+                    other => return Err(format!("unknown --mint mode: {other} (known: stable, fresh)")),
+                }
+            }
             "--trailer" => args.trailer_dest = Some(parse_trailer_dest(&want(a)?)?),
             "--state-dir" => args.state_dir = Some(PathBuf::from(want(a)?)),
             "--schema" => args.schema = want(a)?,
@@ -416,7 +428,7 @@ fn run() -> Result<(), (u8, String)> {
     let stdout = io::stdout();
     let mut out = stdout.lock();
     let trailer = match &cursor {
-        Some(id) => page_resume(&store, id, args.take, args.unit, args.overlap, &mut out)
+        Some(id) => page_resume(&store, id, args.take, args.unit, args.overlap, args.mint, &mut out)
             .map_err(|e| {
                 if e.kind() == io::ErrorKind::NotFound {
                     (1, format!("unknown cursor '{id}' (state: {}) — a cursor is only valid if moreover printed it; run `moreover contract` for the rules", root.display()))
@@ -442,7 +454,7 @@ fn run() -> Result<(), (u8, String)> {
                     buf
                 }
             };
-            page_new(&store, &input, args.take, args.unit, &mut out)
+            page_new(&store, &input, args.take, args.unit, args.mint, &mut out)
                 .map_err(|e| (1, format!("cannot page: {e}")))?
         }
     };
