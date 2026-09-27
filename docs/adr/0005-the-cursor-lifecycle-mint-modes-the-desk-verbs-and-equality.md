@@ -279,6 +279,107 @@ existing `20` versus `10+10` test correctly separates different ordinals.
 This is the pre-release audit and its proposed repairs. Product code,
 the accepted identity key, and the human's decisions are unchanged.
 
+### Repair re-check — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-27
+
+**Recommendation: keep the release held for recovery-state failures
+and temporary-file ownership.** Reviewed `e591e6e`. All 38 existing
+tests pass. The repairs address the original normal two-desk scenario,
+the original empty-final-record window, and the overlength allocation;
+the remaining findings below arise in the new persistence paths.
+
+**What is confirmed.** The CLI regression now exercises A:T, A:U, B:T
+and verifies that B recovers T while A still recovers U. Shared cursor
+mtime is no longer touched. A complete cursor body is written and synced
+before its final name is hard-linked, closing the previous publication
+window when each writer owns its temporary file. A native four-thread
+probe using the unchanged store returned `c2dc` to all four callers and
+left one readable cursor record. The allocator stops after lengths
+4 through 16; the forced-exhaustion regression returns an explicit error.
+The new `5+15` / `10+10` convergence test also passes.
+
+**1. A failed recovery update is silently reported as success.**
+The new `desks/` update suppresses directory creation, file creation,
+write, sync, and rename errors (`src/store.rs:279–288`). I reproduced
+the consequence through the current CLI, using owned scratch state:
+
+| Operation in one desk | Result |
+|---|---|
+| Page T with `-2`, then U with `-2` | both succeed; recovery points at U |
+| Make only `state/desks/` unwritable (`chmod 500`) | cursor records remain writable |
+| Page T again with `-2` | exit 0, prints T and cursor `116k` |
+| Run `-c last --all` | exit 0, returns `U3\nU4\n` |
+
+T and U contain the four numbered lines from the first audit. Permissions
+were restored before scratch cleanup. This is an observed failure path,
+not a hypothetical loss of a concurrent write. A successful call hands
+back T's cursor while leaving recovery on another stream. Propagate the
+recency-update error with a useful diagnostic; silent best-effort writes
+cannot support the new recovery promise.
+
+The read side also treats any unreadable, malformed, mismatched, or
+stale recency record as a reason to scan first-writer cursor records
+(`337–354`). That scan can serve legacy state, but cannot reconstruct
+every stable reuse. Distinguish legacy absence from a damaged current
+recovery record, and report the latter rather than silently selecting
+an older stream.
+
+**2. Concurrent recovery updates share one staging inode.** Every writer
+in a desk uses the same `desks/<hash>.part` path with truncating creation
+(`277–284`). A controlled filesystem interleaving of these exact operations
+produced the following result:
+
+1. Writer A creates and writes `.part`.
+2. Writer B opens the same `.part`, truncating its contents.
+3. A renames `.part` to the final recency path. The final file is empty.
+4. B writes through its still-open descriptor, changing that published
+   file, then its own rename fails because `.part` is gone.
+
+The fixture observed both the empty published file and the failed second
+rename. This is a filesystem interleaving, not a claimed naturally
+observed CLI race. Give each update an exclusively owned temporary file
+and publish its complete body atomically, or serialize the whole update.
+Do not suppress a failed publication. A same-desk interleaving regression
+should require every observed recovery record to be complete and valid;
+the existing different-desk test does not exercise this shared path.
+
+**3. Cursor temporary files also need exclusive creation.** The cursor
+path uses `.mint-<pid>-<random6>`, but opens it with `File::create`
+(`223–227`). Randomness reduces collisions; it does not establish
+ownership. If a repeated temporary name still aliases an already-linked
+cursor, reopening it truncates and rewrites that published record.
+
+The retained [publication re-check probe](../../scripts/ephemeral/2026-09-27-publication-recheck.py)
+distinguishes two runs: unchanged store code for the four-thread check,
+and a controlled copy that fixes only the temporary suffix to exercise
+a collision. In the collision fixture, the published `c2dc` record
+changed from offset 1 to offset 2 while the second mint succeeded as
+`9rgn`. This demonstrates the consequence of a repeated name, not an
+observed random-number collision. Use exclusive creation and retry on
+an occupied temporary name. Cleanup must cover write, sync, and publish
+errors too: the current `?` exits can bypass removal at line 271 and leave
+temporary files behind. The probe pins `e591e6e` so future repairs do not
+silently change what this historical reproduction tests.
+
+**Coverage and contract still to finish.** Keep the new debris test for
+legacy damage. It is sequential and would also pass the previous
+non-atomic implementation; it is not the requested publication-window
+regression. Add controlled publication and temporary-name-collision
+cases, alongside the recency failure and interleaving cases above.
+
+`moreover contract` still omits `--mint` and still says recovery selects
+by cursor-file modification time (`src/main.rs:163–182`), although the
+new recency record is now primary. The commit message's claimed contract
+update is not present in this revision. Before release, document the
+two modes and stable default, the triple, the per-desk recovery source
+and deliberate legacy behavior, and the `cursor: null` exception.
+The earlier source-format descriptions also need to match write-then-
+hard-link publication and IDs that *start* at four characters.
+
+These remaining findings do not reopen the accepted identity key or
+negate the successful normal-path regressions. They prevent an
+unqualified release clearance for the repaired storage paths. This
+entry records the review; it makes no product-code changes.
+
 ---
 
 ## Links
