@@ -225,7 +225,9 @@ impl Store for FsStore {
         // hard-linked to a published cursor shares its inode, so a name
         // collision would rewrite a published record through the alias.
         // create_new establishes ownership; an occupied name just gets a
-        // new suffix. Cleanup is guaranteed on every exit path below.
+        // new suffix. Cleanup is ATTEMPTED on every exit path below —
+        // the removal itself can fail, so debris is possible, but no
+        // path skips the attempt.
         let mut tmp;
         let mut f;
         loop {
@@ -268,8 +270,14 @@ impl Store for FsStore {
                         MintMode::Fresh => mint_id(len),
                         MintMode::Stable => derive_id(cursor, len, rung),
                     };
-                    if publish(&id)? {
-                        break 'mint Ok(id);
+                    // an I/O error breaks the block instead of returning
+                    // (`?` here skipped the temp removal below —
+                    // confirmation-pass finding), so every exit path
+                    // reaches the cleanup attempt.
+                    match publish(&id) {
+                        Ok(true) => break 'mint Ok(id),
+                        Ok(false) => {}
+                        Err(e) => break 'mint Err(e),
                     }
                     if mode == MintMode::Stable {
                         // occupant is complete by construction when ours;
@@ -433,7 +441,14 @@ impl FsStore {
                             )),
                         };
                     }
-                    (Some(d), _) if d != desk => {} // hash collision: fall through to scan
+                    // A different stored desk is only a genuine hash
+                    // collision if it actually hashes to this recovery
+                    // filename (confirmation-pass release condition):
+                    // only then may the scan fallback run. A stored desk
+                    // that does NOT belong at this filename is detectable
+                    // damage — an edited or misplaced record — and gets
+                    // the damage error, never a silent older stream.
+                    (Some(d), _) if d != desk && fnv1a64(d.as_bytes()) == fnv1a64(desk.as_bytes()) => {}
                     _ => {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,

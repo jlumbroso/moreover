@@ -511,6 +511,66 @@ fn a_damaged_recovery_record_reports_instead_of_selecting_an_older_stream() {
 }
 
 #[test]
+fn a_recovery_record_naming_a_foreign_desk_is_damage_not_a_collision() {
+    // The confirmation pass's release condition: a stored `desk=` that
+    // differs from the caller's was classified as a hash collision and
+    // fell through to the legacy mtime scan — but the code never checked
+    // whether that directory could actually belong at this recovery
+    // filename. An edited or misplaced record (desk that does NOT hash
+    // here) is DETECTABLE damage: the scan could silently select an
+    // older stream. Reject it; only a stored desk that genuinely hashes
+    // to the same filename may fall through.
+    let state = scratch_dir("foreigndesk");
+    let desk = scratch_dir("foreigndesk-desk");
+    let t = desk.join("t.txt");
+    let u = desk.join("u.txt");
+    std::fs::write(&t, b"T1\nT2\nT3\nT4\n").unwrap();
+    std::fs::write(&u, b"U1\nU2\nU3\nU4\n").unwrap();
+    let page = |args: &[&str]| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
+        cmd.args(args)
+            .current_dir(&desk)
+            .env("MOREOVER_STATE_DIR", &state)
+            .env_remove("MOREOVER_TRAILER")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        cmd.output().unwrap()
+    };
+    // the confirmation's sequence: T, then U, then a stable reuse of T
+    assert!(page(&[t.to_str().unwrap(), "-2"]).status.success());
+    assert!(page(&[u.to_str().unwrap(), "-2"]).status.success());
+    assert!(page(&[t.to_str().unwrap(), "-2"]).status.success());
+
+    // rewrite the recovery record's desk to a directory that cannot
+    // hash to this filename, keeping the id it points at intact
+    let rec = std::fs::read_dir(state.join("desks"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| !p.file_name().unwrap().to_string_lossy().starts_with('.'))
+        .unwrap();
+    let text = std::fs::read_to_string(&rec).unwrap();
+    let forged: String = text
+        .lines()
+        .map(|l| {
+            if l.starts_with("desk=") {
+                "desk=/somewhere/else/entirely".to_string()
+            } else {
+                l.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    std::fs::write(&rec, forged + "\n").unwrap();
+
+    let out = page(&["-c", "last", "--all"]);
+    assert_eq!(out.status.code(), Some(1), "detectable damage must be an error, not a scan");
+    assert!(out.stdout.is_empty(), "no page content may accompany the damage error");
+    let err = String::from_utf8(out.stderr).unwrap();
+    assert!(err.contains("malformed"), "the damage diagnostic must be reported: {err}");
+}
+
+#[test]
 fn unknown_cursor_error_is_written_to_the_reader() {
     let state = scratch_dir("nocursor");
     let out = run(&state, &["-c", "zz9q", "--all"], None);
