@@ -168,11 +168,21 @@ cursors:
   repeats the same content. The next cursor ID may differ.
   Resumption leaves the original cursor unchanged.
   IDs are case-insensitive; o folds to 0, and i and l fold to 1.
+  IDs start at four characters and can be longer.
+  --mint stable (the default) and --mint fresh assert the ID policy;
+  each is an assertion, valid under any default. Under stable, the next
+  cursor ID is determined by the saved input, the byte position, and
+  the page number, so repeating the same resume returns the same ID;
+  a matching record made under any mode is reused. Under fresh, every
+  resume mints a new ID. mode= in a record names its creation mode.
+  No mode creates a successor when the trailer says cursor: null.
 
 last (recovery):
-  -c last selects the newest saved cursor for the current working
-  directory within the selected state directory, by cursor-file
-  modification time. No matching record is an error.
+  -c last selects this working directory's most recently used cursor,
+  from a per-directory recovery record in the state directory. Records
+  from before this mechanism are matched by their stored directory
+  instead. No matching record is an error; a damaged recovery record is
+  reported as an error rather than silently selecting an older stream.
   last is resolved again on each call. Other invocations in the same
   working directory and state directory can change its selection,
   including to another stream. Use a printed ID for a fixed position.

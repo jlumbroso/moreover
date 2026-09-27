@@ -3,7 +3,7 @@
 # ADR-0005: The cursor lifecycle — mint modes, the desk verbs, and equality
 
 - **Date**: 2026-09-26
-- **Iteration**: 2
+- **Iteration**: 3
 - **Status**: Partially Implemented
 - **Deciders**: Jérémie Lumbroso (rulings, from the dogfooding seed's QST-MINT-POLICY answer); Ribbon 5 (this record, the concrete design); Lector 6 (the equality analysis this ADR must satisfy)
 
@@ -161,6 +161,28 @@ the default moves.
 - Contributors: Lector 6 (audit, probes, regression specs, language corrections); Ribbon 5 (repairs).
 - Changes: per-desk recency files replace shared-record mtime (finding 1 — the audit's exact failure table is now a CLI regression test); publication made atomic via write-then-hard-link (finding 2 — the named-but-empty window is closed; the legacy-debris form is a deterministic-ladder regression test); the ladder bounded to the reader's id space with an explicit exhaustion error and an in-module 104-rung regression (finding 3); every-mint-round-trips invariant asserted; "keyed hash" and opacity wording corrected; the gc/drop mapping-preservation constraint staked; the convergence test (5+15 ≡ 10+10) added.
 - Outcome: `Accepted → Partially Implemented`; release still HELD pending Lector's re-check; `ls`/`gc`/`drop` remain.
+
+### Iteration 3 (2026-09-27) — the re-check's findings, repaired
+
+The re-check (below) confirmed the normal-path repairs and found three
+defects *in the repairs*, all now fixed with its regression specs:
+(1) the desk-recency update no longer fails silently — a write failure
+propagates with a diagnostic naming the minted id the reader would
+otherwise lose (the chmod-500 table is a unix-gated CLI regression),
+and a present-but-damaged recovery record is reported, never silently
+scanned around; (2) recency updates stage in exclusively owned temps
+(create_new + rename), closing the shared-.part truncation interleaving;
+(3) cursor mint temps use exclusive creation with cleanup guaranteed on
+every error path, so a repeated temp name can never truncate a published
+record through its hard-link alias. The contract omission the re-check
+caught was real — an earlier unverified text replacement had silently
+no-opped (the same failure class as the release-gate incident, now also
+in memory) — the contract now carries the mint modes, the triple, the
+per-desk recovery source, the four-character-minimum id note, and the
+`cursor: null` exception. 40 tests green on cargo's own exit code.
+
+- Contributors: Lector 6 (re-check, probes, regression specs); Ribbon 5 (repairs, contract).
+- Outcome: status unchanged; release remains HELD for Lector's confirmation pass; `ls`/`gc`/`drop` next, under the mapping-preservation constraint.
 
 ### Pre-release audit — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-26
 

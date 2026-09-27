@@ -438,6 +438,79 @@ fn stable_reuse_across_desks_keeps_each_desks_recovery_intact() {
 }
 
 #[test]
+#[cfg(unix)]
+fn a_failed_recovery_update_is_an_error_naming_the_minted_cursor() {
+    // Re-check finding 1: the desks/ update was best-effort — with
+    // desks/ unwritable, paging still exited 0 while `-c last` silently
+    // pointed at an older stream. The failure now propagates, and the
+    // diagnostic names the minted id the reader would otherwise lose.
+    use std::os::unix::fs::PermissionsExt;
+    let state = scratch_dir("recfail");
+    let desk = scratch_dir("recfail-desk");
+    let t = desk.join("t.txt");
+    std::fs::write(&t, lines(4)).unwrap();
+
+    let page = |args: &[&str]| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
+        cmd.args(args)
+            .current_dir(&desk)
+            .env("MOREOVER_STATE_DIR", &state)
+            .env_remove("MOREOVER_TRAILER")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        cmd.output().unwrap()
+    };
+    assert!(page(&[t.to_str().unwrap(), "-2"]).status.success());
+
+    let desks = state.join("desks");
+    std::fs::set_permissions(&desks, std::fs::Permissions::from_mode(0o500)).unwrap();
+    let out = page(&[t.to_str().unwrap(), "-2"]);
+    std::fs::set_permissions(&desks, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert!(!out.status.success(), "an unrecordable recovery update must not report success");
+    let err = String::from_utf8(out.stderr).unwrap();
+    assert!(err.contains("was minted"), "the diagnostic must hand back the minted id: {err}");
+    assert!(err.contains("recovery record"), "got: {err}");
+}
+
+#[test]
+fn a_damaged_recovery_record_reports_instead_of_selecting_an_older_stream() {
+    // Re-check finding 1, read side: present-but-bad recovery state is
+    // damage, not legacy absence — `-c last` must say so, never silently
+    // hand back an older stream.
+    let state = scratch_dir("recdamage");
+    let desk = scratch_dir("recdamage-desk");
+    let t = desk.join("t.txt");
+    std::fs::write(&t, lines(4)).unwrap();
+    let page = |args: &[&str]| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
+        cmd.args(args)
+            .current_dir(&desk)
+            .env("MOREOVER_STATE_DIR", &state)
+            .env_remove("MOREOVER_TRAILER")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        cmd.output().unwrap()
+    };
+    assert!(page(&[t.to_str().unwrap(), "-2"]).status.success());
+
+    // corrupt this desk's recovery record in place
+    let rec = std::fs::read_dir(state.join("desks"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| !p.file_name().unwrap().to_string_lossy().starts_with('.'))
+        .unwrap();
+    std::fs::write(&rec, b"garbage\n").unwrap();
+
+    let out = page(&["-c", "last", "--all"]);
+    assert_eq!(out.status.code(), Some(1));
+    let err = String::from_utf8(out.stderr).unwrap();
+    assert!(err.contains("malformed"), "damage must be reported, not scanned around: {err}");
+}
+
+#[test]
 fn unknown_cursor_error_is_written_to_the_reader() {
     let state = scratch_dir("nocursor");
     let out = run(&state, &["-c", "zz9q", "--all"], None);

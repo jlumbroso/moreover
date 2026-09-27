@@ -220,13 +220,37 @@ impl Store for FsStore {
         }
         record.push_str(if mode == MintMode::Stable { "mode=stable\n" } else { "mode=fresh\n" });
 
-        let tmp = self
-            .root
-            .join("cursors")
-            .join(format!(".mint-{}-{}", std::process::id(), mint_id(6)));
-        let mut f = fs::File::create(&tmp)?;
-        f.write_all(record.as_bytes())?;
-        f.sync_all()?;
+        // Exclusive temp creation (re-check finding 3): File::create
+        // would TRUNCATE an existing name — and a temp that was already
+        // hard-linked to a published cursor shares its inode, so a name
+        // collision would rewrite a published record through the alias.
+        // create_new establishes ownership; an occupied name just gets a
+        // new suffix. Cleanup is guaranteed on every exit path below.
+        let mut tmp;
+        let mut f;
+        loop {
+            tmp = self
+                .root
+                .join("cursors")
+                .join(format!(".mint-{}-{}", std::process::id(), mint_id(8)));
+            match fs::OpenOptions::new().write(true).create_new(true).open(&tmp) {
+                Ok(file) => {
+                    f = file;
+                    break;
+                }
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(e),
+            }
+        }
+        let staged = (|| -> io::Result<()> {
+            f.write_all(record.as_bytes())?;
+            f.sync_all()?;
+            Ok(())
+        })();
+        if let Err(e) = staged {
+            let _ = fs::remove_file(&tmp);
+            return Err(e);
+        }
         drop(f);
         let publish = |id: &str| -> io::Result<bool> {
             match fs::hard_link(&tmp, self.root.join("cursors").join(id)) {
@@ -271,19 +295,26 @@ impl Store for FsStore {
         let _ = fs::remove_file(&tmp);
         let id = result?;
 
-        // per-desk recency (finding 1): the caller's desk records its
-        // own last use; the shared record is never modified.
+        // per-desk recency (finding 1; hardened per the re-check): the
+        // caller's desk records its own last use; the shared record is
+        // never modified. Each update stages in an EXCLUSIVELY OWNED
+        // temp (re-check finding 2 — a shared .part inode let writers
+        // truncate each other mid-publish) and any failure PROPAGATES:
+        // a silent best-effort write cannot support the recovery
+        // promise, so the error names the minted id the reader would
+        // otherwise lose (re-check finding 1).
         if !cursor.desk.is_empty() {
-            let dpath = self.root.join("desks").join(format!("{:016x}", fnv1a64(cursor.desk.as_bytes())));
-            let dtmp = dpath.with_extension("part");
-            if fs::create_dir_all(self.root.join("desks")).is_ok() {
-                if let Ok(mut df) = fs::File::create(&dtmp) {
-                    let _ = write!(df, "desk={}\nid={}\n", cursor.desk, id);
-                    let _ = df.sync_all();
-                    drop(df);
-                    let _ = fs::rename(&dtmp, &dpath);
-                }
-            }
+            self.record_desk_use(&cursor.desk, &id).map_err(|e| {
+                io::Error::new(
+                    e.kind(),
+                    format!(
+                        "cursor {id} was minted, but this directory's recovery \
+                         record could not be updated ({e}) — resume with the \
+                         printed id; `-c last` here may be stale until the \
+                         state dir is writable"
+                    ),
+                )
+            })?;
         }
         Ok(id)
     }
@@ -323,6 +354,45 @@ impl Store for FsStore {
 }
 
 impl FsStore {
+    /// Write this desk's recovery record: staged in an exclusively owned
+    /// temp, published whole by atomic rename (last-writer-wins is the
+    /// correct semantics for recency; sharing a staging inode was not).
+    fn record_desk_use(&self, desk: &str, id: &str) -> io::Result<()> {
+        fs::create_dir_all(self.root.join("desks"))?;
+        let dpath = self.root.join("desks").join(format!("{:016x}", fnv1a64(desk.as_bytes())));
+        let mut dtmp;
+        let mut df;
+        loop {
+            dtmp = self
+                .root
+                .join("desks")
+                .join(format!(".part-{}-{}", std::process::id(), mint_id(8)));
+            match fs::OpenOptions::new().write(true).create_new(true).open(&dtmp) {
+                Ok(file) => {
+                    df = file;
+                    break;
+                }
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(e),
+            }
+        }
+        let staged = (|| -> io::Result<()> {
+            write!(df, "desk={desk}\nid={id}\n")?;
+            df.sync_all()?;
+            Ok(())
+        })();
+        drop(df);
+        if let Err(e) = staged {
+            let _ = fs::remove_file(&dtmp);
+            return Err(e);
+        }
+        if let Err(e) = fs::rename(&dtmp, &dpath) {
+            let _ = fs::remove_file(&dtmp);
+            return Err(e);
+        }
+        Ok(())
+    }
+
     /// The newest cursor MINTED OR REUSED from `desk` — `-c last`'s
     /// resolver (ADR-0003; shipped on first-contact field evidence).
     /// Primary source: the per-desk recency file (audit finding 1 —
@@ -334,22 +404,50 @@ impl FsStore {
             return Ok(None);
         }
         let dpath = self.root.join("desks").join(format!("{:016x}", fnv1a64(desk.as_bytes())));
-        if let Ok(text) = fs::read_to_string(&dpath) {
-            let mut d = None;
-            let mut id = None;
-            for l in text.lines() {
-                match l.split_once('=') {
-                    Some(("desk", v)) => d = Some(v.to_string()),
-                    Some(("id", v)) => id = Some(v.to_string()),
-                    _ => {}
+        match fs::read_to_string(&dpath) {
+            Ok(text) => {
+                let mut d = None;
+                let mut id = None;
+                for l in text.lines() {
+                    match l.split_once('=') {
+                        Some(("desk", v)) => d = Some(v.to_string()),
+                        Some(("id", v)) => id = Some(v.to_string()),
+                        _ => {}
+                    }
+                }
+                match (d, id) {
+                    (Some(d), Some(id)) if d == desk => {
+                        return match self.get_cursor(&id) {
+                            Ok(_) => Ok(Some(id)),
+                            // a recorded-but-missing cursor is damage, not
+                            // legacy absence: report it rather than silently
+                            // selecting an older stream (re-check finding 1)
+                            Err(e) => Err(io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                format!(
+                                    "this directory's recovery record points at \
+                                     cursor {id}, which cannot be read ({e}) — \
+                                     resume with a printed id, or clear {} to reset",
+                                    dpath.display()
+                                ),
+                            )),
+                        };
+                    }
+                    (Some(d), _) if d != desk => {} // hash collision: fall through to scan
+                    _ => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!(
+                                "this directory's recovery record is malformed — \
+                                 resume with a printed id, or clear {} to reset",
+                                dpath.display()
+                            ),
+                        ));
+                    }
                 }
             }
-            if let (Some(d), Some(id)) = (d, id) {
-                // hash-collision guard + staleness guard (record may be gone)
-                if d == desk && self.get_cursor(&id).is_ok() {
-                    return Ok(Some(id));
-                }
-            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {} // legacy absence: scan
+            Err(e) => return Err(e),
         }
         // legacy fallback: scan records by their stored (first-writer) desk
         let mut best: Option<(std::time::SystemTime, String)> = None;
