@@ -47,9 +47,13 @@ this session UUID and checkout. This verifies the founding turn. Recheck
 turn metadata on resumption; the registry's requested model alone is
 not runtime evidence.
 
-The registry finalizes this session's provisional recruitment entry under
-`lector`, preserving its UUID and Codex harness. This is a newly founded
-seat. Its read order lives in `agent-sessions.json`.
+The committed registry was missing this seat on 2026-09-28, despite this
+profile recording its founding. I added `lector` and its `crew` membership
+that day, using the verified founding UUID and the installed pneumatic
+Codex harness defaults. The registry's `registered` date records that
+addition; the founding date remains 2026-09-22. Its read order lives in
+`agent-sessions.json`. The latest `turn_context`, at
+`2026-09-28T23:05:51.723Z`, again verifies `gpt-6-astra` in this checkout.
 
 At founding, `pneumatic onboard lector` resolves every read-order path.
 The installed `pneumatic` recognizes this Codex harness and

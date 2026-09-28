@@ -8,7 +8,8 @@
   },
   "_colors_in_use": {
     "_comment": "Optional but recommended: track seat colors to avoid collisions. Claude Code's /color command accepts: red, blue, green, yellow, purple, orange, pink, cyan, default.",
-    "red": "ribbon (#A3243B)"
+    "red": "ribbon (#A3243B)",
+    "blue": "lector (#315E80)"
   },
   "_global": {
     "_comment": "Optional defaults for `just launch`'s claude invocation; per-seat settings override. Global-only (no per-seat form): agents, remote_control_session_name_prefix. Anything unset is omitted from the command (Claude's own defaults apply).",
@@ -20,7 +21,7 @@
   "groups": {
     "_comment": "Role-based groups for inbox addressing. `just broadcast <from> <slug> [group]` writes a -to-<group>- brief; `just wait-for-brief <alias>` wakes on briefs addressed to any group the alias belongs to. Members are alias keys from 'aliases' below (validated by `just groups`).",
     "crew": {
-      "members": ["ribbon"],
+      "members": ["ribbon", "lector"],
       "description": "All active participants. Broadcasts addressed to 'crew' wake every seat. Add alias keys to 'members' as seats register."
     }
   },
@@ -44,6 +45,39 @@
         "CLAUDE.md",
         "docs/inbox/ONBOARDING.md",
         "docs/inbox/agents/example-seat.md"
+      ]
+    },
+    "lector": {
+      "uuid": "01a0c7ad-6cc6-7212-8240-2746bf84b12e",
+      "role": "Lector 6 — public language and independent claims review for moreover: README, help, errors, contract, and launch writing",
+      "display_name": "Lector 6",
+      "color": "blue",
+      "color_note": "Ink blue, chosen with the name to keep the reader at the center of the work.",
+      "model": "gpt-6-astra",
+      "model_note": "Founded on consent 2026-09-22; registry entry added by Lector 6 on 2026-09-28 after the omission was noticed. Same founding Codex session: session_meta confirms UUID and checkout; turn_context at 2026-09-28T23:05:51.723Z verifies gpt-6-astra. The UUID belongs to Codex, not Claude Code.",
+      "registered": "2026-09-28",
+      "founding_brief": "docs/inbox/2026-09-22-0452-ribbon-to-astra-seat-public-language-seat-founding-brief.md",
+      "settings": {
+        "color_hex": "#315E80"
+      },
+      "harness": {
+        "kind": "codex-cli",
+        "session_glob": "~/.codex/sessions/**/rollout-*{uuid}*.jsonl",
+        "launch_cmd": ["codex", "resume", "{uuid}"],
+        "busy_marker": "esc to interrupt",
+        "prompt_prefix": "»"
+      },
+      "read_order": [
+        "CLAUDE.md",
+        "docs/inbox/ONBOARDING.md",
+        "docs/inbox/INBOX-PROTOCOL.md",
+        "docs/inbox/CONVENTIONS.md",
+        "docs/inbox/ENCODING-MAP.md",
+        "docs/inbox/agents/lector.md",
+        "docs/inbox/2026-09-22-0452-ribbon-to-astra-seat-public-language-seat-founding-brief.md",
+        "docs/adr/0003-the-option-surface-modes-flags-and-where-the-trailer-goes.md",
+        "README.md",
+        "src/main.rs"
       ]
     },
     "ribbon": {
