@@ -488,6 +488,234 @@ impl FsStore {
     }
 }
 
+/// A cursors/ directory entry as the desk verbs see it. `cursor` is
+/// `None` for a tombstone (an empty file left by `gc`/`drop` to keep a
+/// stable ladder's walk deterministic) or unreadable legacy debris —
+/// both are climbed past at mint time, so both are load-bearing in the
+/// same way.
+pub struct CursorEntry {
+    pub id: String,
+    pub cursor: Option<Cursor>,
+    pub mode: Option<String>,
+    pub modified: std::time::SystemTime,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct GcReport {
+    pub removed: usize,
+    pub tombstoned: usize,
+    pub spools_freed: usize,
+    pub desks_cleared: usize,
+    pub kept: usize,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct DropReport {
+    /// true: the record had to stay behind as a tombstone (a live stable
+    /// record's ladder walked past it); false: removed outright.
+    pub tombstoned: bool,
+    pub spools_freed: usize,
+    pub desks_cleared: usize,
+}
+
+impl FsStore {
+    /// Every cursors/ entry whose NAME is a valid, already-normalized id.
+    /// Anything else in the directory (mint temps, foreign files) is
+    /// neither listed nor ever touched by the desk verbs.
+    pub fn list_cursors(&self) -> io::Result<Vec<CursorEntry>> {
+        let mut out = Vec::new();
+        for entry in fs::read_dir(self.root.join("cursors"))? {
+            let entry = entry?;
+            let name = match entry.file_name().into_string() {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+            if normalize_id(&name).as_deref() != Some(name.as_str()) {
+                continue;
+            }
+            let modified = entry.metadata()?.modified()?;
+            let (cursor, mode) = match fs::read_to_string(entry.path()) {
+                Ok(text) => {
+                    let mode = text.lines().find_map(|l| {
+                        l.strip_prefix("mode=").map(|v| v.to_string())
+                    });
+                    (self.get_cursor(&name).ok(), mode)
+                }
+                Err(_) => (None, None),
+            };
+            out.push(CursorEntry { id: name, cursor, mode, modified });
+        }
+        out.sort_by(|a, b| b.modified.cmp(&a.modified));
+        Ok(out)
+    }
+
+    /// The stable ladder's full candidate sequence for a position — the
+    /// EXACT walk `put_cursor` takes (lengths 4..=16, eight rungs each,
+    /// rung counting every step). `gc`/`drop` re-walk it to learn which
+    /// occupied ids a live record's mapping depends on.
+    fn ladder_candidates(cursor: &Cursor) -> Vec<String> {
+        let mut rung: u64 = 0;
+        let mut out = Vec::with_capacity(104);
+        for len in 4..=16usize {
+            for _ in 0..8 {
+                out.push(derive_id(cursor, len, rung));
+                rung += 1;
+            }
+        }
+        out
+    }
+
+    /// The ids a set of surviving records' stable mappings depend on
+    /// (ADR-0005's mapping-preservation constraint): for each surviving
+    /// STABLE record, every ladder candidate its mint walked past must
+    /// stay occupied, or replaying that mint lands on a different id.
+    /// Fresh records replay nothing and protect nothing.
+    fn protected_ids(survivors: &[&CursorEntry]) -> std::collections::HashSet<String> {
+        let mut protected = std::collections::HashSet::new();
+        for e in survivors {
+            let (Some(cursor), Some(mode)) = (&e.cursor, &e.mode) else { continue };
+            if mode != "stable" {
+                continue;
+            }
+            for candidate in Self::ladder_candidates(cursor) {
+                if candidate == e.id {
+                    break;
+                }
+                protected.insert(candidate);
+            }
+        }
+        protected
+    }
+
+    /// Remove a record file, or — when a surviving stable mapping walked
+    /// past it — truncate it to an empty tombstone instead: the mint
+    /// walk treats an unreadable occupant exactly like legacy debris
+    /// (climb), so the ladder stays deterministic while the record's
+    /// content is gone.
+    fn remove_or_tombstone(
+        &self,
+        id: &str,
+        protected: &std::collections::HashSet<String>,
+        was_tombstone: bool,
+    ) -> io::Result<bool> {
+        let path = self.root.join("cursors").join(id);
+        if protected.contains(id) {
+            if !was_tombstone {
+                fs::File::create(&path)?.sync_all()?;
+            }
+            Ok(true)
+        } else {
+            fs::remove_file(&path)?;
+            Ok(false)
+        }
+    }
+
+    /// Delete spools (and their .meta sidecars) no surviving record
+    /// references, and desk recovery records that name a removed cursor
+    /// (so `-c last` falls back to the legacy scan instead of reporting
+    /// damage that a deliberate sweep, not corruption, created).
+    fn sweep_orphans(&self, referenced: &std::collections::HashSet<String>) -> io::Result<(usize, usize)> {
+        let mut spools_freed = 0;
+        if let Ok(entries) = fs::read_dir(self.root.join("spools")) {
+            for entry in entries.flatten() {
+                let name = match entry.file_name().into_string() {
+                    Ok(s) => s,
+                    Err(_) => continue,
+                };
+                let base = name.strip_suffix(".meta").unwrap_or(&name);
+                let is_spool_name =
+                    base.len() == 16 && base.bytes().all(|b| b.is_ascii_hexdigit());
+                if is_spool_name && !referenced.contains(base) {
+                    fs::remove_file(entry.path())?;
+                    if !name.ends_with(".meta") {
+                        spools_freed += 1;
+                    }
+                }
+            }
+        }
+        let mut desks_cleared = 0;
+        if let Ok(entries) = fs::read_dir(self.root.join("desks")) {
+            for entry in entries.flatten() {
+                let name = match entry.file_name().into_string() {
+                    Ok(s) => s,
+                    Err(_) => continue,
+                };
+                if !(name.len() == 16 && name.bytes().all(|b| b.is_ascii_hexdigit())) {
+                    continue;
+                }
+                let Ok(text) = fs::read_to_string(entry.path()) else { continue };
+                let id = text.lines().find_map(|l| l.strip_prefix("id=").map(str::to_string));
+                let stale = match id {
+                    Some(id) => self.get_cursor(&id).is_err(),
+                    None => true,
+                };
+                if stale {
+                    fs::remove_file(entry.path())?;
+                    desks_cleared += 1;
+                }
+            }
+        }
+        Ok((spools_freed, desks_cleared))
+    }
+
+    /// `moreover gc DAYS`: sweep cursor records older than DAYS (plus
+    /// tombstones and debris), preserving every id a surviving stable
+    /// mapping depends on as a tombstone (ADR-0005's constraint), then
+    /// sweep orphaned spools and stale desk recovery records.
+    pub fn gc(&self, days: u64) -> io::Result<GcReport> {
+        let cutoff = std::time::SystemTime::now()
+            .checked_sub(std::time::Duration::from_secs(days.saturating_mul(86_400)));
+        let entries = self.list_cursors()?;
+        let expired = |e: &CursorEntry| match (&e.cursor, cutoff) {
+            (None, _) => true, // tombstone/debris: no promise, always sweepable
+            (Some(_), Some(cutoff)) => e.modified <= cutoff,
+            (Some(_), None) => false,
+        };
+        let survivors: Vec<&CursorEntry> =
+            entries.iter().filter(|e| !expired(e)).collect();
+        let protected = Self::protected_ids(&survivors);
+
+        let mut report = GcReport { kept: survivors.len(), ..GcReport::default() };
+        for e in entries.iter().filter(|e| expired(e)) {
+            if self.remove_or_tombstone(&e.id, &protected, e.cursor.is_none())? {
+                report.tombstoned += 1;
+            } else {
+                report.removed += 1;
+            }
+        }
+        let referenced: std::collections::HashSet<String> = survivors
+            .iter()
+            .filter_map(|e| e.cursor.as_ref().map(|c| c.spool.clone()))
+            .collect();
+        let (spools_freed, desks_cleared) = self.sweep_orphans(&referenced)?;
+        report.spools_freed = spools_freed;
+        report.desks_cleared = desks_cleared;
+        Ok(report)
+    }
+
+    /// `moreover drop CURSOR`: declare one parked stream finished. The
+    /// record is removed (or tombstoned under the same constraint as
+    /// `gc`), its spool freed if nothing else references it, and desk
+    /// recovery records naming it cleared.
+    pub fn drop_cursor(&self, id: &str) -> io::Result<DropReport> {
+        let id = normalize_id(id).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, format!("invalid cursor id: {id}"))
+        })?;
+        self.get_cursor(&id)?; // unknown or corrupt: same errors resume gives
+        let entries = self.list_cursors()?;
+        let survivors: Vec<&CursorEntry> =
+            entries.iter().filter(|e| e.id != id).collect();
+        let protected = Self::protected_ids(&survivors);
+        let tombstoned = self.remove_or_tombstone(&id, &protected, false)?;
+        let referenced: std::collections::HashSet<String> = survivors
+            .iter()
+            .filter_map(|e| e.cursor.as_ref().map(|c| c.spool.clone()))
+            .collect();
+        let (spools_freed, desks_cleared) = self.sweep_orphans(&referenced)?;
+        Ok(DropReport { tombstoned, spools_freed, desks_cleared })
+    }
+}
+
 /// Crockford base-32 (QST-CURSOR-SEMANTICS: base-32 petnames, read
 /// case-insensitively). Generation uses the lowercase alphabet; reading
 /// folds case and the Crockford confusables (o→0, i/l→1).
@@ -627,6 +855,60 @@ mod tests {
         let err = store.put_cursor(&target, MintMode::Stable).unwrap_err();
         assert!(err.to_string().contains("exhausted"), "got: {err}");
         // and no unusable record was left behind for the target triple
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn sweeping_a_ladder_support_preserves_stable_mappings() {
+        // ADR-0005's mapping-preservation constraint, staked as a hard
+        // requirement on the lifecycle verbs: a stable id is defined by
+        // the ladder walk its mint took, and that walk depended on which
+        // earlier candidates were OCCUPIED. Removing such an occupant
+        // outright would make replaying the same resume land on a
+        // different (earlier) id than the reader's transcript carries.
+        // The real-world collision shape: a fresh-mode record (random id)
+        // happens to sit on a stable triple's first candidate.
+        let dir = std::env::temp_dir().join(format!("moreover-sweep-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let store = FsStore::open(dir.clone()).unwrap();
+        let target = Cursor {
+            spool: "0123456789abcdef".into(),
+            offset: 42,
+            line: 3,
+            page: 2,
+            desk: String::new(),
+            nl: Some(3),
+        };
+        // a fresh record occupies the target's first candidate
+        let c0 = derive_id(&target, 4, 0);
+        let decoy = "spool=ffffffffffffffff\noffset=9\nline=0\npage=9\ndesk=\nnl=0\nmode=fresh\n";
+        fs::write(dir.join("cursors").join(&c0), decoy).unwrap();
+
+        // the stable mint climbs past it and lands on candidate 1
+        let minted = store.put_cursor(&target, MintMode::Stable).unwrap();
+        assert_eq!(minted, derive_id(&target, 4, 1));
+
+        // dropping the occupant must LEAVE A TOMBSTONE: the minted
+        // mapping walked past it
+        let report = store.drop_cursor(&c0).unwrap();
+        assert!(report.tombstoned, "a ladder support must not vanish");
+        assert!(store.get_cursor(&c0).is_err(), "its content must be gone");
+        assert_eq!(
+            fs::metadata(dir.join("cursors").join(&c0)).unwrap().len(),
+            0,
+            "the tombstone is an empty placeholder"
+        );
+
+        // the replay invariant holds: the same resume still yields the
+        // same id (the tombstone is climbed like any unreadable occupant)
+        assert_eq!(store.put_cursor(&target, MintMode::Stable).unwrap(), minted);
+
+        // once nothing depends on the slot, gc may finally clear it:
+        // drop the stable record, then sweep everything
+        store.drop_cursor(&minted).unwrap();
+        let report = store.gc(0).unwrap();
+        assert_eq!(report.kept, 0);
+        assert!(!dir.join("cursors").join(&c0).exists(), "unprotected tombstone swept");
         let _ = fs::remove_dir_all(&dir);
     }
 

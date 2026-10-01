@@ -58,7 +58,12 @@ Trailer (the v0 grammar is a compatibility promise):
 
 Desk (subcommands — the standalone world; they never appear in pipes):
   moreover contract     print the model-facing contract
-  (ls, stat, drop, gc: reserved for the desk, not yet available)
+  moreover ls           list this directory's cursors (--everywhere: all)
+  moreover drop CURSOR  declare a parked stream finished; free what it held
+  moreover gc [DAYS]    sweep cursors unused for DAYS days (default: 7;
+                        0 sweeps everything); orphaned input follows
+  (stat: reserved for the desk, not yet available)
+  Desk verbs accept --state-dir like the pipe world does.
 
 Introspection:
   --help                this text
@@ -105,10 +110,33 @@ invocations:
   resume:   moreover -c CURSOR --all
   recover:  moreover -c last
   contract: moreover contract
+  list:     moreover ls
+  drop:     moreover drop CURSOR
+  sweep:    moreover gc [DAYS]
   Resume reads saved input, ignores stdin, and rejects an input file.
-  The contract takes no arguments and does not read stdin.
-  ls, stat, drop, and gc are reserved subcommands, not yet available.
+  Subcommands never read stdin. stat is reserved, not yet available.
   Prefix a filename matching a subcommand with ./ (for example, ./ls).
+
+desk verbs:
+  ls lists this working directory's saved cursors, one per line, newest
+  first: ID, page, line (with the saved input's total when known), mint
+  mode, the saved input's name, and age. The line -c last would select
+  is marked. A cursor minted from another directory but last used here
+  is listed with that note. ls --everywhere lists every directory's
+  cursors with their directories. Listing changes nothing.
+  drop CURSOR removes that cursor's record. Saved input still referenced
+  by another cursor is kept; otherwise it is freed. Recovery records
+  naming the dropped cursor are cleared, so -c last there selects an
+  older record or reports none. Other cursors are unaffected.
+  gc DAYS removes every cursor record unused for more than DAYS days
+  (default 7; gc 0 removes all), then frees saved input and recovery
+  records nothing references. Unreadable record debris is swept too.
+  When a removed record occupies a slot that a kept stable ID's
+  derivation walked past, an empty placeholder file is left in its
+  place so that stable IDs stay reproducible; placeholders are swept
+  once nothing depends on them. drop and gc are permanent: a removed
+  cursor ID stops resolving, and freed input cannot be resumed.
+  Desk verbs accept --state-dir and never print a trailer.
 
 paging:
   Every invocation defaults to 10 lines, including resume.
@@ -250,16 +278,75 @@ enum Parsed {
     Help,
     Version,
     Contract,
+    Ls { everywhere: bool, state_dir: Option<PathBuf> },
+    Gc { days: u64, state_dir: Option<PathBuf> },
+    Drop { cursor: String, state_dir: Option<PathBuf> },
+}
+
+/// Parse a desk verb's tail: `--state-dir` is common to all three;
+/// anything else is handed back to the verb for its own vocabulary.
+fn desk_tail(rest: &[String]) -> Result<(Vec<String>, Option<PathBuf>), String> {
+    let mut own = Vec::new();
+    let mut state_dir = None;
+    let mut it = rest.iter();
+    while let Some(a) = it.next() {
+        if a == "--state-dir" {
+            let v = it.next().ok_or_else(|| "--state-dir needs a value".to_string())?;
+            state_dir = Some(PathBuf::from(v));
+        } else {
+            own.push(a.clone());
+        }
+    }
+    Ok((own, state_dir))
 }
 
 fn parse_args(argv: &[String]) -> Result<Parsed, String> {
     // Desk world: a subcommand must be the first token (git/cargo shape).
     if let Some(first) = argv.first() {
-        if first == "contract" {
-            if argv.len() > 1 {
-                return Err("moreover contract takes no arguments".to_string());
+        match first.as_str() {
+            "contract" => {
+                if argv.len() > 1 {
+                    return Err("moreover contract takes no arguments".to_string());
+                }
+                return Ok(Parsed::Contract);
             }
-            return Ok(Parsed::Contract);
+            "ls" => {
+                let (own, state_dir) = desk_tail(&argv[1..])?;
+                let mut everywhere = false;
+                for a in &own {
+                    match a.as_str() {
+                        "--everywhere" => everywhere = true,
+                        other => {
+                            return Err(format!(
+                                "moreover ls takes --everywhere and --state-dir only, got: {other}"
+                            ))
+                        }
+                    }
+                }
+                return Ok(Parsed::Ls { everywhere, state_dir });
+            }
+            "gc" => {
+                let (own, state_dir) = desk_tail(&argv[1..])?;
+                let mut days: u64 = 7;
+                match own.as_slice() {
+                    [] => {}
+                    [d] => {
+                        days = d.parse().map_err(|_| {
+                            format!("moreover gc takes an age in whole days, got: {d}")
+                        })?;
+                    }
+                    _ => return Err("moreover gc takes at most one argument (DAYS)".to_string()),
+                }
+                return Ok(Parsed::Gc { days, state_dir });
+            }
+            "drop" => {
+                let (own, state_dir) = desk_tail(&argv[1..])?;
+                match own.as_slice() {
+                    [id] => return Ok(Parsed::Drop { cursor: id.clone(), state_dir }),
+                    _ => return Err("moreover drop takes exactly one cursor ID".to_string()),
+                }
+            }
+            _ => {}
         }
         if DESK_VERBS.contains(&first.as_str()) {
             return Err(format!(
@@ -364,6 +451,151 @@ fn emit_trailer(dest: &TrailerDest, line: &str) -> io::Result<()> {
     Ok(())
 }
 
+fn open_store(state_dir: Option<PathBuf>) -> Result<FsStore, (u8, String)> {
+    let root = state_dir.unwrap_or_else(FsStore::default_root);
+    FsStore::open(root.clone())
+        .map_err(|e| (1, format!("cannot open state dir {}: {e}", root.display())))
+}
+
+fn current_desk() -> String {
+    std::env::current_dir().map(|p| p.display().to_string()).unwrap_or_default()
+}
+
+/// Humanized age for `ls` — coarse on purpose: a reader deciding what to
+/// resume or sweep needs magnitude, not timestamps.
+fn age_of(t: std::time::SystemTime) -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(t)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    match secs {
+        0..=59 => "under a minute ago".to_string(),
+        60..=3599 => format!("{}m ago", secs / 60),
+        3600..=86_399 => format!("{}h ago", secs / 3600),
+        _ => format!("{}d ago", secs / 86_400),
+    }
+}
+
+fn ls_line(store: &FsStore, e: &moreover::store::CursorEntry) -> String {
+    use moreover::store::Store;
+    let c = e.cursor.as_ref().expect("ls only prints parseable records");
+    let total = store
+        .spool_meta(&c.spool)
+        .ok()
+        .flatten()
+        .map(|m| format!("/{}", m.total_lines()))
+        .unwrap_or_default();
+    let mode = e.mode.as_deref().unwrap_or("fresh");
+    format!(
+        "{}  page {}  line {}{}  {}  spool {}  {}",
+        e.id, c.page, c.line, total, mode, c.spool, age_of(e.modified)
+    )
+}
+
+fn run_ls(everywhere: bool, state_dir: Option<PathBuf>) -> Result<(), (u8, String)> {
+    let store = open_store(state_dir)?;
+    let entries = store
+        .list_cursors()
+        .map_err(|e| (1, format!("cannot list cursors: {e}")))?;
+    let records: Vec<_> = entries.iter().filter(|e| e.cursor.is_some()).collect();
+
+    if everywhere {
+        if records.is_empty() {
+            println!("no cursors in {}", store.root().display());
+            return Ok(());
+        }
+        for e in &records {
+            let desk = e.cursor.as_ref().map(|c| c.desk.as_str()).unwrap_or("");
+            let desk = if desk.is_empty() { "(no desk recorded)" } else { desk };
+            println!("{}  desk {}", ls_line(&store, e), desk);
+        }
+        return Ok(());
+    }
+
+    let desk = current_desk();
+    // This desk's view: records minted here, plus — under stable reuse —
+    // a record another desk minted first but this desk used last (the
+    // per-desk recovery file knows; the shared record keeps its first
+    // writer's desk). A damaged recovery record is surfaced, not fatal:
+    // the listing still stands on the records themselves.
+    let recovery = match store.last_cursor_for_desk(&desk) {
+        Ok(id) => id,
+        Err(e) => {
+            eprintln!("note: this desk's recovery record is unusable ({e})");
+            None
+        }
+    };
+    let mine: Vec<_> = records
+        .iter()
+        .filter(|e| e.cursor.as_ref().is_some_and(|c| c.desk == desk))
+        .collect();
+    let mut shown = false;
+    for e in &mine {
+        let mark = if Some(e.id.as_str()) == recovery.as_deref() { "  <- last" } else { "" };
+        println!("{}{}", ls_line(&store, e), mark);
+        shown = true;
+    }
+    if let Some(id) = &recovery {
+        if !mine.iter().any(|e| &e.id == id) {
+            if let Some(e) = records.iter().find(|e| &e.id == id) {
+                println!(
+                    "{}  <- last (minted from another directory; reused here)",
+                    ls_line(&store, e)
+                );
+                shown = true;
+            }
+        }
+    }
+    if !shown {
+        println!("no cursors on this desk ({desk})");
+    }
+    Ok(())
+}
+
+fn plural(n: usize, word: &str) -> String {
+    if n == 1 { format!("1 {word}") } else { format!("{n} {word}s") }
+}
+
+fn run_gc(days: u64, state_dir: Option<PathBuf>) -> Result<(), (u8, String)> {
+    let store = open_store(state_dir)?;
+    let report = store.gc(days).map_err(|e| (1, format!("gc failed: {e}")))?;
+    println!(
+        "kept {}; removed {}; {} kept stable IDs reproducible; freed {}; cleared {}",
+        plural(report.kept, "cursor"),
+        plural(report.removed, "record"),
+        plural(report.tombstoned, "placeholder"),
+        plural(report.spools_freed, "spool"),
+        plural(report.desks_cleared, "recovery record"),
+    );
+    Ok(())
+}
+
+fn run_drop(cursor: &str, state_dir: Option<PathBuf>) -> Result<(), (u8, String)> {
+    let store = open_store(state_dir)?;
+    let report = store.drop_cursor(cursor).map_err(|e| {
+        if e.kind() == io::ErrorKind::NotFound {
+            (1, format!(
+                "unknown cursor '{cursor}' (state: {}) — a cursor is only valid if \
+                 moreover printed it; run `moreover contract` for the rules",
+                store.root().display()
+            ))
+        } else {
+            (1, format!("cannot drop '{cursor}': {e}"))
+        }
+    })?;
+    let fate = if report.tombstoned {
+        "an empty placeholder remains: a live stable ID depends on this slot"
+    } else {
+        "record removed"
+    };
+    println!(
+        "dropped {cursor} ({fate}); freed {}; cleared {}",
+        plural(report.spools_freed, "spool"),
+        plural(report.desks_cleared, "recovery record"),
+    );
+    Ok(())
+}
+
 fn run() -> Result<(), (u8, String)> {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let args = match parse_args(&argv).map_err(|msg| (2, msg))? {
@@ -379,6 +611,9 @@ fn run() -> Result<(), (u8, String)> {
             print!("{CONTRACT}");
             return Ok(());
         }
+        Parsed::Ls { everywhere, state_dir } => return run_ls(everywhere, state_dir),
+        Parsed::Gc { days, state_dir } => return run_gc(days, state_dir),
+        Parsed::Drop { cursor, state_dir } => return run_drop(&cursor, state_dir),
         Parsed::Run(args) => args,
     };
 

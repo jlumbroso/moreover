@@ -246,15 +246,22 @@ fn resume_uses_this_invocations_size_unit_and_overlap() {
 
 #[test]
 fn desk_verbs_are_reserved_and_teach_the_escape() {
-    // A file named `ls` must never silently page; the error must teach
-    // `./ls` (design commitment 3: errors are written to the reader).
+    // A file named `stat` must never silently page; the error must teach
+    // `./stat` (design commitment 3: errors are written to the reader).
+    // ls/drop/gc graduated from reserved to implemented (ADR-0005), so
+    // only stat still carries the reservation error — but a bad desk
+    // invocation must STILL never fall through to paging.
     let state = scratch_dir("reserved");
-    for verb in ["ls", "stat", "drop", "gc"] {
-        let out = run(&state, &[verb], None);
-        assert_eq!(out.status.code(), Some(2), "{verb} must be reserved");
-        let err = String::from_utf8(out.stderr).unwrap();
-        assert!(err.contains(&format!("./{verb}")), "error must teach the escape: {err}");
-    }
+    let out = run(&state, &["stat"], None);
+    assert_eq!(out.status.code(), Some(2), "stat must be reserved");
+    let err = String::from_utf8(out.stderr).unwrap();
+    assert!(err.contains("./stat"), "error must teach the escape: {err}");
+
+    // drop without an id is a desk usage error, never a page of a file
+    // named 'drop'
+    let out = run(&state, &["drop"], None);
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8(out.stderr).unwrap().contains("one cursor ID"));
 }
 
 #[test]
@@ -580,4 +587,148 @@ fn unknown_cursor_error_is_written_to_the_reader() {
         err.contains("only valid if moreover printed it"),
         "the error must teach the rule, not just refuse: {err}"
     );
+}
+
+/// Pull the cursor id out of a trailer on stderr (`cursor: Xxxx>`).
+fn cursor_in(stderr: &[u8]) -> String {
+    let s = String::from_utf8_lossy(stderr);
+    let tail = s.split("cursor: ").nth(1).expect("trailer with a cursor");
+    tail.split('>').next().unwrap().trim().to_string()
+}
+
+/// Build a desk-aware invocation (cwd matters to `ls` and `-c last`).
+fn at_desk(desk: &PathBuf, state: &PathBuf, args: &[&str]) -> Output {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
+    cmd.args(args)
+        .current_dir(desk)
+        .env("MOREOVER_STATE_DIR", state)
+        .env_remove("MOREOVER_TRAILER")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    cmd.output().unwrap()
+}
+
+#[test]
+fn ls_shows_this_desks_cursors_and_marks_recovery() {
+    // The first-contact field report's ask, and the audit's table shape:
+    // a reader asking "what streams do I have parked HERE?" — including
+    // the stable-reuse case where this desk's newest cursor was minted
+    // from another directory (`ls` must not hide what `-c last` selects).
+    let state = scratch_dir("ls");
+    let desk_a = scratch_dir("ls-a");
+    let desk_b = scratch_dir("ls-b");
+    let t = desk_a.join("t.txt");
+    std::fs::write(&t, b"T1\nT2\nT3\nT4\n").unwrap();
+
+    let paged = at_desk(&desk_a, &state, &[t.to_str().unwrap(), "-2"]);
+    assert!(paged.status.success());
+    let t_id = cursor_in(&paged.stderr);
+
+    // A sees its cursor, marked as what `-c last` would select
+    let ls_a = at_desk(&desk_a, &state, &["ls"]);
+    assert!(ls_a.status.success(), "{}", String::from_utf8_lossy(&ls_a.stderr));
+    let listing = String::from_utf8(ls_a.stdout).unwrap();
+    assert!(listing.contains(&t_id), "listing must name the cursor: {listing}");
+    assert!(listing.contains("<- last"), "the recovery selection must be marked: {listing}");
+    // a cursor names the NEXT position: after one 2-line page of a
+    // 4-line input, the parked position is page 2, 2 lines consumed
+    assert!(listing.contains("page 2"), "position belongs in the listing: {listing}");
+    assert!(listing.contains("line 2/4"), "consumed/total belongs in the listing: {listing}");
+
+    // B has nothing yet — explicit emptiness, exit 0
+    let ls_b = at_desk(&desk_b, &state, &["ls"]);
+    assert!(ls_b.status.success());
+    assert!(String::from_utf8_lossy(&ls_b.stdout).contains("no cursors on this desk"));
+
+    // B pages the same content: stable minting reuses A's record; B's ls
+    // must still show B's recovery selection, annotated as reused
+    assert!(at_desk(&desk_b, &state, &[t.to_str().unwrap(), "-2"]).status.success());
+    let ls_b2 = at_desk(&desk_b, &state, &["ls"]);
+    let listing = String::from_utf8(ls_b2.stdout).unwrap();
+    assert!(listing.contains(&t_id), "the reused cursor must appear: {listing}");
+    assert!(listing.contains("reused here"), "the cross-desk note must appear: {listing}");
+
+    // --everywhere sees it once, with its minting desk
+    let everywhere = at_desk(&desk_b, &state, &["ls", "--everywhere"]);
+    let listing = String::from_utf8(everywhere.stdout).unwrap();
+    assert!(listing.contains(&t_id));
+    assert!(listing.contains(desk_a.to_str().unwrap()), "desk column: {listing}");
+}
+
+#[test]
+fn drop_retires_a_cursor_its_spool_and_its_recovery_record() {
+    // ADR-0003's gloss: "declare a parked stream finished." After drop,
+    // the id must stop resolving, the saved input must be freed when
+    // nothing else references it, and `-c last` must not resurrect it.
+    let state = scratch_dir("drop");
+    let desk = scratch_dir("drop-desk");
+    let t = desk.join("t.txt");
+    std::fs::write(&t, b"T1\nT2\nT3\nT4\n").unwrap();
+
+    let paged = at_desk(&desk, &state, &[t.to_str().unwrap(), "-2"]);
+    let t_id = cursor_in(&paged.stderr);
+
+    let dropped = at_desk(&desk, &state, &["drop", &t_id]);
+    assert!(dropped.status.success(), "{}", String::from_utf8_lossy(&dropped.stderr));
+    let said = String::from_utf8(dropped.stdout).unwrap();
+    assert!(said.contains(&t_id), "the report names what was dropped: {said}");
+
+    let resumed = at_desk(&desk, &state, &["-c", &t_id, "--all"]);
+    assert_eq!(resumed.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&resumed.stderr).contains("unknown cursor"));
+
+    let last = at_desk(&desk, &state, &["-c", "last", "--all"]);
+    assert_eq!(last.status.code(), Some(1), "recovery must not resurrect a dropped stream");
+    assert!(String::from_utf8_lossy(&last.stderr).contains("no cursors were minted"));
+
+    let spools: Vec<_> = std::fs::read_dir(state.join("spools"))
+        .map(|d| d.flatten().collect())
+        .unwrap_or_default();
+    assert!(spools.is_empty(), "an unreferenced spool must be freed");
+
+    // dropping an unknown id teaches the same rule resume does
+    let unknown = at_desk(&desk, &state, &["drop", "zz9q"]);
+    assert_eq!(unknown.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("only valid if moreover printed it"));
+}
+
+#[test]
+#[cfg(unix)]
+fn gc_sweeps_by_age_and_spares_the_young() {
+    // `gc DAYS` is a promise about AGE: an old parked stream goes, a
+    // young one stays resumable, and the sweep's own report says what
+    // happened. Backdating uses touch(1), as a shell operator would.
+    let state = scratch_dir("gc");
+    let desk = scratch_dir("gc-desk");
+    let t = desk.join("t.txt");
+    let u = desk.join("u.txt");
+    std::fs::write(&t, b"T1\nT2\nT3\nT4\n").unwrap();
+    std::fs::write(&u, b"U1\nU2\nU3\nU4\n").unwrap();
+
+    let old = cursor_in(&at_desk(&desk, &state, &[t.to_str().unwrap(), "-2"]).stderr);
+    let young = cursor_in(&at_desk(&desk, &state, &[u.to_str().unwrap(), "-2"]).stderr);
+
+    // age the first record past the default window
+    let aged = Command::new("touch")
+        .args(["-m", "-t", "202501010000"])
+        .arg(state.join("cursors").join(&old))
+        .status()
+        .unwrap();
+    assert!(aged.success());
+
+    let swept = at_desk(&desk, &state, &["gc"]);
+    assert!(swept.status.success(), "{}", String::from_utf8_lossy(&swept.stderr));
+    let report = String::from_utf8(swept.stdout).unwrap();
+    assert!(report.contains("removed 1 record"), "the report counts the sweep: {report}");
+
+    assert_eq!(at_desk(&desk, &state, &["-c", &old, "--all"]).status.code(), Some(1));
+    let resumed = at_desk(&desk, &state, &["-c", &young, "--all"]);
+    assert!(resumed.status.success(), "a young cursor must survive gc");
+    assert_eq!(resumed.stdout, b"U3\nU4\n");
+
+    // gc 0 declares the whole desk finished
+    assert!(at_desk(&desk, &state, &["gc", "0"]).status.success());
+    let ls = at_desk(&desk, &state, &["ls"]);
+    assert!(String::from_utf8_lossy(&ls.stdout).contains("no cursors on this desk"));
 }
