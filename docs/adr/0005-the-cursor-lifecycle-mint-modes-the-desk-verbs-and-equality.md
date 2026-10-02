@@ -593,6 +593,153 @@ the release coordinator's next step.
 
 ---
 
+### Verbs pre-release audit — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-10-01
+
+**Recommendation: hold v0.4.0 for the lifecycle findings below.** Reviewed
+`923178f7fed534c16ef9096a11a07c0a0fc7c9d8`, with the Iteration-5 record
+at `5630401`. All **45 repository tests pass** (8 unit, 23 CLI, 14 sketch).
+The earlier stable-mint clearance remains scoped to its reviewed code;
+the new destructive operations introduce the failures recorded here.
+
+The tombstone mechanism works for the tested stable-created survivor:
+both drop and age-GC can retire its earlier blocker while preserving
+its ID, and an unneeded tombstone can be swept. The normal desk listing,
+recovery annotation, and single-cursor drop also pass. The missing cases
+are reference uncertainty, concurrent publication, and creation modes
+that do not describe subsequent stable use.
+
+**1. Dropping one cursor can destroy another cursor's saved input after
+a read failure.** `list_cursors` collapses read errors into `cursor: None`
+(`src/store.rs:537–544`), and `drop_cursor` excludes those entries from
+the referenced-spool set (`710–714`). The
+[pinned CLI probe](../../scripts/ephemeral/2026-10-01-verbs-cli-audit.py)
+creates valid T and U cursors, makes only T's record unreadable with
+`chmod 000`, and drops U. The call exits 0 and reports **two spools freed**.
+T's record survives byte-for-byte, but its spool is gone. Restoring T's
+permissions does not restore resumability. This directly violates
+"Other cursors are unaffected." The fixture changes permissions only
+inside owned scratch state and restores them before cleanup.
+
+Separate a known empty tombstone from a record whose contents could
+not be read. Do not infer absence of references from an incomplete
+inventory; propagate the read failure before destructive work, or
+preserve everything whose ownership remains uncertain. The same rule
+must cover GC's inventory and recovery cleanup: `get_cursor(...).is_err()`
+does not establish that a record was deliberately retired. Regression:
+temporarily deny access to unrelated T, attempt drop U and age-GC,
+restore access, and require T's record and input to remain usable.
+
+**2. Maintenance can free an in-flight stream before its successful
+cursor is published.** A first page publishes its spool at
+`src/paging.rs:38`, writes output at line 93, and mints its continuation
+at line 98. The orphan sweep (`src/store.rs:617–634`) does not coordinate
+with that interval. The retained
+[interleaving probe](../../scripts/ephemeral/2026-10-01-lifecycle-interleaving-audit.py)
+runs maintenance from an output callback at that point, using the
+unmodified pinned paging and store modules:
+
+| Scheduled operation during first-page delivery | Observed result |
+|---|---|
+| `gc 365` | frees the new stream's spool |
+| Drop an unrelated parked cursor | frees both its spool and the new stream's spool |
+| Let either first page finish | succeeds with readable cursor `7eb8`; resuming it fails `NotFound` |
+
+This controls a possible process interleaving; it is not a claim that
+an uncontrolled production race was observed. Coordinate maintenance
+with the complete paging/publication transaction. Separate locks around
+individual `put_spool` and `put_cursor` calls leave the demonstrated gap.
+Regression: use independent workers and barriers to pause first-page
+delivery, attempt either maintenance operation, then let both workers
+finish. A successful continuation must still return `new2\nnew3\n`;
+the test must permit maintenance to wait for the page transaction.
+
+**3. Creation mode is not a sufficient test for mapping protection.**
+Stable minting reuses any matching triple, retaining the existing
+record's creation mode. `protected_ids` nevertheless skips `mode=fresh`
+and mode-absent survivors (`src/store.rs:575–579`). The
+[mixed-mode probe](../../scripts/ephemeral/2026-10-01-mixed-mode-mapping-audit.py)
+places a matching fresh or legacy-form record on the second candidate,
+then establishes its mapping through an ordinary stable mint. This is
+controlled candidate placement, not an observed random collision.
+
+For `(0123456789abcdef, 42, 2)`, the first candidate is `sf5x` and the
+established mapping is `e3w2`. Dropping `sf5x`, or aging only that blocker
+and running `gc(1)`, removes it outright. `e3w2` remains readable, but
+stable replay now returns `sf5x`. All four fresh/legacy × drop/GC cases
+fail the mapping invariant; both stable-created controls preserve it.
+The existing test has a fresh **blocker**, not a reused fresh **survivor**.
+
+Protect the preceding ladder candidates of every readable survivor
+whose ID occurs on its stable ladder, irrespective of creation mode;
+confirm that membership before collecting its preceding candidates.
+Alternatively, explicitly record stable adoption. Keep `mode=` truthful
+as creation provenance. Add both mixed-origin cases for both verbs.
+
+**4. The advertised age is inactivity; the implemented age is record
+mtime.** The help and contract say "unused for DAYS", but GC compares
+cursor-file modification time (`src/store.rs:665–672`), and stable reuse
+does not refresh it. The CLI probe backdates T's record ten days,
+successfully reuses T today, then runs `gc 7`: T is removed immediately.
+The probe also confirms that `gc 0` retains a future-dated record,
+contrary to the unconditional "removes all" promise.
+
+Prefer tracking last successful use if the promised inactivity policy
+is intended; include both stable reuse and explicit resume in its
+regressions. Keeping creation-age collection instead requires an
+explicit policy decision and matching public wording, not an unqualified
+"unused" claim. Exact wording for the current predicate would be:
+"GC removes records whose modification time is at least DAYS days old.
+Stable reuse does not refresh that timestamp." Make the zero-day
+branch unconditional if it is to mean all records. The seven-day
+default alone is not the objection; the meaning of that age is.
+
+**5. State the destructive scope explicitly before shipping.** The CLI
+probe gives A one cursor and B another in a shared state directory.
+A's `ls` shows only A's cursor, but A's `gc 0` removes both, and B's
+cursor no longer resumes. State-wide collection may be intentional;
+it must be explicit beside desk-scoped listing. Proposed wording:
+
+> GC operates across all working directories in the selected state
+> directory. `drop CURSOR` removes that shared cursor for every directory
+> using it. Both commands also clean up unreferenced saved input and
+> stale recovery records across that state directory.
+
+The test comment calling `gc 0` "the whole desk" should likewise name
+the selected state directory. `ls --everywhere` means that directory's
+entire store, not every store on the machine.
+
+**Other public-language corrections, subordinate to the repairs above.**
+The current local listing contains records **first minted here**, plus
+only the current recovery cursor if another desk minted it. It does
+not retain a history of all foreign-origin cursors reused here. Say so.
+That foreign recovery row is appended after the sorted local rows;
+either sort the combined list or qualify "newest first". Replace
+"Listing changes nothing" with "Listing does not alter existing cursor
+or saved-input records" (opening a missing store creates directories).
+Replace unconditional ID retirement with "The current cursor record is
+retired; freed saved input is deleted. A later ingestion may mint that
+ID again." Name `ls`, `drop`, and `gc` as accepting `--state-dir`;
+`contract` still rejects arguments. These are bounded wording fixes,
+not requests for historical membership or permanent ID revocation.
+
+The three retained probes pin the reviewed revision and reproduce its
+observed behavior; they are historical audit artifacts, not passing
+regressions for the proposed repairs. All use disposable, owned state.
+GPT-6 Astra delegated reviewers contributed the mapping probe
+(`contract_audit`), interleaving probe (`verbs_concurrency`), and surface
+review (`post_claims`). Lector 6 ran the full gate and all three probes,
+authored the CLI probe, and owns this recommendation. This pass changes
+no product implementation or attributed design decisions.
+
+**Gate observation.** One repeated gate run failed ten CLI assertions,
+including `contract` and a `stat` invocation with no exit code. Immediate
+direct invocations returned their expected exit codes, and the complete
+23-test CLI rerun and a following full 45-test gate passed without source
+changes. The cause of that transient failure was not established. It is
+separate from the pinned, deterministic lifecycle reproductions above.
+
+---
+
 ## Links
 
 - Related: the dogfooding seed (QST-MINT-POLICY); ADR-0003 (desk verbs, `-c last`, desk scoping); Lector 6's seed thread (equality)
