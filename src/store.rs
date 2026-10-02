@@ -79,6 +79,19 @@ pub trait Store {
     /// idempotent; under `Stable`, minting itself is idempotent too.
     fn put_cursor(&self, cursor: &Cursor, mode: MintMode) -> io::Result<String>;
     fn get_cursor(&self, id: &str) -> io::Result<Cursor>;
+    /// Take the maintenance lock's SHARED side for the duration of a
+    /// paging transaction (spool publish → output → cursor publish), so
+    /// concurrent `gc`/`drop` wait instead of freeing a spool whose
+    /// cursor is not published yet (verbs audit, finding 2). The guard
+    /// releases on drop. Backends without maintenance may return None.
+    fn txn_shared(&self) -> io::Result<Option<fs::File>> {
+        Ok(None)
+    }
+    /// Note that a cursor was USED (resumed): refreshes its record's
+    /// age for `gc`'s inactivity window (verbs audit, finding 4).
+    /// Best-effort by design — a read-only state dir must not make
+    /// resume fail, and `gc` cannot run on such a store anyway.
+    fn note_use(&self, _id: &str) {}
 }
 
 pub struct FsStore {
@@ -311,6 +324,11 @@ impl Store for FsStore {
         // a silent best-effort write cannot support the recovery
         // promise, so the error names the minted id the reader would
         // otherwise lose (re-check finding 1).
+        // A mint that REUSED an existing record is a use: refresh its
+        // age so gc's inactivity window means what it says (finding 4).
+        // Recovery no longer reads record mtime (per-desk files do that
+        // job), so this touch cannot re-create the audit's finding 1.
+        self.note_use(&id);
         if !cursor.desk.is_empty() {
             self.record_desk_use(&cursor.desk, &id).map_err(|e| {
                 io::Error::new(
@@ -357,6 +375,29 @@ impl Store for FsStore {
                 io::ErrorKind::InvalidData,
                 format!("corrupt cursor record: {id}"),
             )),
+        }
+    }
+
+    fn txn_shared(&self) -> io::Result<Option<fs::File>> {
+        let f = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(self.root.join(".txn-lock"))?;
+        f.lock_shared()?;
+        Ok(Some(f))
+    }
+
+    fn note_use(&self, id: &str) {
+        // Best-effort by contract (see the trait): refreshes the
+        // record's mtime so gc's "unused for DAYS" counts from the last
+        // mint, reuse, or resume — never from first creation alone.
+        let Some(id) = normalize_id(id) else { return };
+        if let Ok(f) = fs::OpenOptions::new()
+            .append(true)
+            .open(self.root.join("cursors").join(&id))
+        {
+            let _ = f.set_modified(std::time::SystemTime::now());
         }
     }
 }
@@ -488,16 +529,34 @@ impl FsStore {
     }
 }
 
-/// A cursors/ directory entry as the desk verbs see it. `cursor` is
-/// `None` for a tombstone (an empty file left by `gc`/`drop` to keep a
-/// stable ladder's walk deterministic) or unreadable legacy debris —
-/// both are climbed past at mint time, so both are load-bearing in the
-/// same way.
+/// What a cursors/ directory entry turned out to hold. The distinction
+/// the verbs audit demanded (finding 1): a KNOWN-empty tombstone and a
+/// record whose contents could not be read are different situations —
+/// the first references nothing by construction; the second's
+/// references are UNKNOWN, and destructive work must not proceed on an
+/// incomplete inventory.
+pub enum EntryState {
+    /// A parseable record; `mode` is its creation provenance.
+    Record { cursor: Cursor, mode: Option<String> },
+    /// An exactly-empty file: a tombstone left by `gc`/`drop`.
+    Tombstone,
+    /// Non-empty but unreadable or unparseable: ownership uncertain.
+    Unknown { why: String },
+}
+
 pub struct CursorEntry {
     pub id: String,
-    pub cursor: Option<Cursor>,
-    pub mode: Option<String>,
+    pub state: EntryState,
     pub modified: std::time::SystemTime,
+}
+
+impl CursorEntry {
+    pub fn record(&self) -> Option<&Cursor> {
+        match &self.state {
+            EntryState::Record { cursor, .. } => Some(cursor),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -533,20 +592,48 @@ impl FsStore {
             if normalize_id(&name).as_deref() != Some(name.as_str()) {
                 continue;
             }
-            let modified = entry.metadata()?.modified()?;
-            let (cursor, mode) = match fs::read_to_string(entry.path()) {
-                Ok(text) => {
-                    let mode = text.lines().find_map(|l| {
-                        l.strip_prefix("mode=").map(|v| v.to_string())
-                    });
-                    (self.get_cursor(&name).ok(), mode)
+            let meta = entry.metadata()?;
+            let modified = meta.modified()?;
+            let state = if meta.len() == 0 {
+                EntryState::Tombstone
+            } else {
+                match fs::read_to_string(entry.path()) {
+                    Ok(text) => match self.get_cursor(&name) {
+                        Ok(cursor) => {
+                            let mode = text
+                                .lines()
+                                .find_map(|l| l.strip_prefix("mode=").map(|v| v.to_string()));
+                            EntryState::Record { cursor, mode }
+                        }
+                        Err(e) => EntryState::Unknown { why: e.to_string() },
+                    },
+                    Err(e) => EntryState::Unknown { why: e.to_string() },
                 }
-                Err(_) => (None, None),
             };
-            out.push(CursorEntry { id: name, cursor, mode, modified });
+            out.push(CursorEntry { id: name, state, modified });
         }
         out.sort_by(|a, b| b.modified.cmp(&a.modified));
         Ok(out)
+    }
+
+    /// Destructive maintenance refuses an incomplete inventory (verbs
+    /// audit, finding 1): an entry we cannot read may reference a spool
+    /// we would otherwise free, so nothing is removed until the operator
+    /// repairs or removes the unreadable file.
+    fn refuse_unknown(entries: &[CursorEntry]) -> io::Result<()> {
+        for e in entries {
+            if let EntryState::Unknown { why } = &e.state {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "cannot inventory cursor record {} ({why}) — nothing was \
+                         removed; repair or remove that file, then rerun",
+                        e.id
+                    ),
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// The stable ladder's full candidate sequence for a position — the
@@ -567,21 +654,21 @@ impl FsStore {
 
     /// The ids a set of surviving records' stable mappings depend on
     /// (ADR-0005's mapping-preservation constraint): for each surviving
-    /// STABLE record, every ladder candidate its mint walked past must
-    /// stay occupied, or replaying that mint lands on a different id.
-    /// Fresh records replay nothing and protect nothing.
+    /// record whose id actually OCCURS on its own stable ladder, every
+    /// candidate its mint walked past must stay occupied, or replaying
+    /// that mint lands on a different id. Membership — not creation
+    /// mode — is the test (verbs audit, finding 3): stable minting
+    /// adopts any matching record, so a `mode=fresh` or legacy record
+    /// can carry an established stable mapping. A record whose id is
+    /// nowhere on its ladder (a genuinely random fresh id) protects
+    /// nothing.
     fn protected_ids(survivors: &[&CursorEntry]) -> std::collections::HashSet<String> {
         let mut protected = std::collections::HashSet::new();
         for e in survivors {
-            let (Some(cursor), Some(mode)) = (&e.cursor, &e.mode) else { continue };
-            if mode != "stable" {
-                continue;
-            }
-            for candidate in Self::ladder_candidates(cursor) {
-                if candidate == e.id {
-                    break;
-                }
-                protected.insert(candidate);
+            let Some(cursor) = e.record() else { continue };
+            let candidates = Self::ladder_candidates(cursor);
+            if let Some(pos) = candidates.iter().position(|c| c == &e.id) {
+                protected.extend(candidates.into_iter().take(pos));
             }
         }
         protected
@@ -611,9 +698,12 @@ impl FsStore {
     }
 
     /// Delete spools (and their .meta sidecars) no surviving record
-    /// references, and desk recovery records that name a removed cursor
+    /// references, and desk recovery records that name an ABSENT cursor
     /// (so `-c last` falls back to the legacy scan instead of reporting
-    /// damage that a deliberate sweep, not corruption, created).
+    /// damage that a deliberate sweep, not corruption, created). A desk
+    /// record naming a present-but-unreadable cursor is left alone: that
+    /// is possible damage for `-c last` to surface, not proof of
+    /// retirement (verbs audit, finding 1).
     fn sweep_orphans(&self, referenced: &std::collections::HashSet<String>) -> io::Result<(usize, usize)> {
         let mut spools_freed = 0;
         if let Ok(entries) = fs::read_dir(self.root.join("spools")) {
@@ -645,9 +735,15 @@ impl FsStore {
                 }
                 let Ok(text) = fs::read_to_string(entry.path()) else { continue };
                 let id = text.lines().find_map(|l| l.strip_prefix("id=").map(str::to_string));
-                let stale = match id {
-                    Some(id) => self.get_cursor(&id).is_err(),
-                    None => true,
+                // stale ONLY when the named record is genuinely absent —
+                // never on a read/parse failure, which is uncertainty
+                let stale = match id.as_deref().and_then(normalize_id) {
+                    Some(id) => {
+                        let target = self.root.join("cursors").join(&id);
+                        matches!(fs::metadata(&target), Err(e) if e.kind() == io::ErrorKind::NotFound)
+                            || fs::metadata(&target).map(|m| m.len() == 0).unwrap_or(false)
+                    }
+                    None => false,
                 };
                 if stale {
                     fs::remove_file(entry.path())?;
@@ -658,18 +754,26 @@ impl FsStore {
         Ok((spools_freed, desks_cleared))
     }
 
-    /// `moreover gc DAYS`: sweep cursor records older than DAYS (plus
-    /// tombstones and debris), preserving every id a surviving stable
-    /// mapping depends on as a tombstone (ADR-0005's constraint), then
-    /// sweep orphaned spools and stale desk recovery records.
+    /// `moreover gc DAYS`: sweep cursor records UNUSED for DAYS days
+    /// (use — minting, stable reuse, or resuming — refreshes a record's
+    /// time; verbs audit, finding 4), plus tombstones nothing depends
+    /// on, preserving every id a surviving stable mapping depends on as
+    /// a tombstone (ADR-0005's constraint), then sweep orphaned spools
+    /// and stale desk recovery records. `gc 0` removes every record,
+    /// unconditionally. Runs under the exclusive maintenance lock, so
+    /// it cannot interleave with a paging transaction (finding 2), and
+    /// refuses to run at all over an unreadable entry (finding 1).
     pub fn gc(&self, days: u64) -> io::Result<GcReport> {
+        let _txn = self.txn_exclusive()?;
+        let entries = self.list_cursors()?;
+        Self::refuse_unknown(&entries)?;
         let cutoff = std::time::SystemTime::now()
             .checked_sub(std::time::Duration::from_secs(days.saturating_mul(86_400)));
-        let entries = self.list_cursors()?;
-        let expired = |e: &CursorEntry| match (&e.cursor, cutoff) {
-            (None, _) => true, // tombstone/debris: no promise, always sweepable
-            (Some(_), Some(cutoff)) => e.modified <= cutoff,
-            (Some(_), None) => false,
+        let expired = |e: &CursorEntry| match &e.state {
+            EntryState::Tombstone => true, // no promise: sweepable when unprotected
+            EntryState::Record { .. } if days == 0 => true, // "all" means all
+            EntryState::Record { .. } => cutoff.is_some_and(|c| e.modified <= c),
+            EntryState::Unknown { .. } => false, // unreachable past refuse_unknown
         };
         let survivors: Vec<&CursorEntry> =
             entries.iter().filter(|e| !expired(e)).collect();
@@ -677,7 +781,8 @@ impl FsStore {
 
         let mut report = GcReport { kept: survivors.len(), ..GcReport::default() };
         for e in entries.iter().filter(|e| expired(e)) {
-            if self.remove_or_tombstone(&e.id, &protected, e.cursor.is_none())? {
+            let was_tombstone = matches!(e.state, EntryState::Tombstone);
+            if self.remove_or_tombstone(&e.id, &protected, was_tombstone)? {
                 report.tombstoned += 1;
             } else {
                 report.removed += 1;
@@ -685,7 +790,7 @@ impl FsStore {
         }
         let referenced: std::collections::HashSet<String> = survivors
             .iter()
-            .filter_map(|e| e.cursor.as_ref().map(|c| c.spool.clone()))
+            .filter_map(|e| e.record().map(|c| c.spool.clone()))
             .collect();
         let (spools_freed, desks_cleared) = self.sweep_orphans(&referenced)?;
         report.spools_freed = spools_freed;
@@ -696,23 +801,40 @@ impl FsStore {
     /// `moreover drop CURSOR`: declare one parked stream finished. The
     /// record is removed (or tombstoned under the same constraint as
     /// `gc`), its spool freed if nothing else references it, and desk
-    /// recovery records naming it cleared.
+    /// recovery records naming it cleared. Same safety rails as `gc`:
+    /// exclusive maintenance lock; refuses over an unreadable entry.
     pub fn drop_cursor(&self, id: &str) -> io::Result<DropReport> {
         let id = normalize_id(id).ok_or_else(|| {
             io::Error::new(io::ErrorKind::InvalidInput, format!("invalid cursor id: {id}"))
         })?;
+        let _txn = self.txn_exclusive()?;
         self.get_cursor(&id)?; // unknown or corrupt: same errors resume gives
         let entries = self.list_cursors()?;
+        Self::refuse_unknown(&entries)?;
         let survivors: Vec<&CursorEntry> =
             entries.iter().filter(|e| e.id != id).collect();
         let protected = Self::protected_ids(&survivors);
         let tombstoned = self.remove_or_tombstone(&id, &protected, false)?;
         let referenced: std::collections::HashSet<String> = survivors
             .iter()
-            .filter_map(|e| e.cursor.as_ref().map(|c| c.spool.clone()))
+            .filter_map(|e| e.record().map(|c| c.spool.clone()))
             .collect();
         let (spools_freed, desks_cleared) = self.sweep_orphans(&referenced)?;
         Ok(DropReport { tombstoned, spools_freed, desks_cleared })
+    }
+
+    /// The maintenance lock's exclusive side: `gc`/`drop` hold it for
+    /// their whole destructive pass, so they wait out any in-flight
+    /// paging transaction (and vice versa) instead of freeing a spool
+    /// whose cursor has not been published yet (verbs audit, finding 2).
+    fn txn_exclusive(&self) -> io::Result<fs::File> {
+        let f = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(self.root.join(".txn-lock"))?;
+        f.lock()?;
+        Ok(f)
     }
 }
 
@@ -910,6 +1032,80 @@ mod tests {
         assert_eq!(report.kept, 0);
         assert!(!dir.join("cursors").join(&c0).exists(), "unprotected tombstone swept");
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn adopted_fresh_and_legacy_records_still_protect_their_ladders() {
+        // Verbs audit, finding 3: stable minting ADOPTS any matching
+        // record, whatever its creation mode — so a `mode=fresh` or
+        // legacy (mode-absent) record can carry an established stable
+        // mapping, and gc/drop gating protection on `mode=stable` let
+        // its blocker be removed outright, breaking replay. Protection
+        // now tests ladder MEMBERSHIP: the survivor's id occurring on
+        // its own stable ladder, irrespective of provenance.
+        for legacy_form in [false, true] {
+            let dir = std::env::temp_dir().join(format!(
+                "moreover-adopt-{}-{}",
+                std::process::id(),
+                legacy_form
+            ));
+            let _ = fs::remove_dir_all(&dir);
+            let store = FsStore::open(dir.clone()).unwrap();
+            let target = Cursor {
+                spool: "0123456789abcdef".into(),
+                offset: 42,
+                line: 3,
+                page: 2,
+                desk: String::new(),
+                nl: Some(3),
+            };
+            let c0 = derive_id(&target, 4, 0);
+            let c1 = derive_id(&target, 4, 1);
+            // a blocker (different stream) on the first candidate...
+            fs::write(
+                dir.join("cursors").join(&c0),
+                "spool=ffffffffffffffff\noffset=9\nline=0\npage=9\ndesk=\nnl=0\nmode=fresh\n",
+            )
+            .unwrap();
+            // ...and a MATCHING record on the second, created fresh (or
+            // in the legacy pre-mode form): the natural adoption shape
+            let mode_line = if legacy_form { "" } else { "mode=fresh\n" };
+            fs::write(
+                dir.join("cursors").join(&c1),
+                format!(
+                    "spool={}\noffset=42\nline=3\npage=2\ndesk=\nnl=3\n{mode_line}",
+                    target.spool
+                ),
+            )
+            .unwrap();
+            // stable mint adopts it (same triple → reuse, mode untouched)
+            assert_eq!(store.put_cursor(&target, MintMode::Stable).unwrap(), c1);
+
+            // dropping the blocker must TOMBSTONE it: the adopted
+            // survivor's mapping walked past it
+            let report = store.drop_cursor(&c0).unwrap();
+            assert!(report.tombstoned, "legacy_form={legacy_form}: blocker must not vanish");
+            assert_eq!(store.put_cursor(&target, MintMode::Stable).unwrap(), c1);
+
+            // same invariant under age-gated gc: re-occupy the slot,
+            // age only the blocker past the window, sweep
+            fs::write(
+                dir.join("cursors").join(&c0),
+                "spool=ffffffffffffffff\noffset=9\nline=0\npage=9\ndesk=\nnl=0\nmode=fresh\n",
+            )
+            .unwrap();
+            let old = std::time::SystemTime::now() - std::time::Duration::from_secs(10 * 86_400);
+            fs::OpenOptions::new()
+                .append(true)
+                .open(dir.join("cursors").join(&c0))
+                .unwrap()
+                .set_modified(old)
+                .unwrap();
+            let report = store.gc(7).unwrap();
+            assert_eq!(report.tombstoned, 1, "legacy_form={legacy_form}: aged blocker tombstoned");
+            assert_eq!(store.put_cursor(&target, MintMode::Stable).unwrap(), c1);
+            let _ = fs::remove_dir_all(&dir);
+        }
     }
 
     #[test]

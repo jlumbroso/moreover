@@ -58,10 +58,14 @@ Trailer (the v0 grammar is a compatibility promise):
 
 Desk (subcommands — the standalone world; they never appear in pipes):
   moreover contract     print the model-facing contract
-  moreover ls           list this directory's cursors (--everywhere: all)
+  moreover ls           list this directory's cursors (--everywhere:
+                        every directory's, in the selected state dir)
   moreover drop CURSOR  declare a parked stream finished; free what it held
   moreover gc [DAYS]    sweep cursors unused for DAYS days (default: 7;
-                        0 sweeps everything); orphaned input follows
+                        0 removes every record); orphaned input follows.
+                        Use = minted, reused, or resumed. gc and drop act
+                        on the WHOLE selected state directory, not just
+                        this working directory's cursors.
   (stat: reserved for the desk, not yet available)
   Desk verbs accept --state-dir like the pipe world does.
 
@@ -116,26 +120,42 @@ invocations:
   Resume reads saved input, ignores stdin, and rejects an input file.
   Subcommands never read stdin. stat is reserved, not yet available.
   Prefix a filename matching a subcommand with ./ (for example, ./ls).
+  With no file and no cursor, a stdin that is a terminal — or an open
+  device delivering neither data nor end-of-file within 2 seconds, the
+  shape many agent harnesses give — prints a short guide and exits 2
+  instead of blocking forever. An empty but finished input is not that
+  case: it earns its 0/0 trailer.
 
 desk verbs:
-  ls lists this working directory's saved cursors, one per line, newest
-  first: ID, page, line (with the saved input's total when known), mint
-  mode, the saved input's name, and age. The line -c last would select
-  is marked. A cursor minted from another directory but last used here
-  is listed with that note. ls --everywhere lists every directory's
-  cursors with their directories. Listing changes nothing.
-  drop CURSOR removes that cursor's record. Saved input still referenced
-  by another cursor is kept; otherwise it is freed. Recovery records
-  naming the dropped cursor are cleared, so -c last there selects an
-  older record or reports none. Other cursors are unaffected.
-  gc DAYS removes every cursor record unused for more than DAYS days
-  (default 7; gc 0 removes all), then frees saved input and recovery
-  records nothing references. Unreadable record debris is swept too.
+  ls lists the cursors first minted from this working directory, one
+  per line, newest first: ID, page, line (with the saved input's total
+  when known), creation mode, the saved input's name, and age. The line
+  -c last would select is marked. If the current recovery cursor was
+  minted from another directory, it is listed with that note; the
+  listing is not a history of every foreign cursor ever reused here.
+  ls --everywhere lists every directory's cursors in the selected state
+  directory — one store, not every store on the machine. Listing
+  changes nothing, and an unreadable record is noted, not hidden.
+  drop CURSOR removes that cursor's record FOR EVERY directory that
+  uses it. Saved input still referenced by another cursor is kept;
+  otherwise it is freed. Recovery records naming the dropped cursor are
+  cleared, so -c last there selects an older record or reports none.
+  Other cursors are unaffected.
+  gc DAYS removes every cursor record in the selected state directory —
+  all working directories — unused for DAYS or more days; gc 0 removes
+  every record unconditionally. Use means minted, reused, or resumed:
+  each refreshes the record's age (when the state directory is
+  writable). It then frees saved input and recovery records nothing
+  references.
   When a removed record occupies a slot that a kept stable ID's
   derivation walked past, an empty placeholder file is left in its
   place so that stable IDs stay reproducible; placeholders are swept
-  once nothing depends on them. drop and gc are permanent: a removed
-  cursor ID stops resolving, and freed input cannot be resumed.
+  once nothing depends on them. A record that cannot be read makes gc
+  and drop refuse without removing anything: an unreadable record's
+  references are unknown, and guessing could destroy another cursor's
+  saved input. gc and drop wait for any in-progress paging in the same
+  state directory, and paging waits for them. Both are permanent: a
+  removed cursor ID stops resolving, and freed input cannot be resumed.
   Desk verbs accept --state-dir and never print a trailer.
 
 paging:
@@ -451,6 +471,75 @@ fn emit_trailer(dest: &TrailerDest, line: &str) -> io::Result<()> {
     Ok(())
 }
 
+/// The null-call guard, in three layers (first dogfooding seed; extended
+/// by Gauge 5's field report, 2026-10-02): a real terminal guides
+/// immediately, as before. A character-special stdin that is NOT a
+/// terminal is the shape agent harnesses hand out — open, non-tty, and
+/// possibly never delivering EOF — so it gets a BOUNDED read: data or
+/// end-of-file proceeds normally (/dev/null's instant EOF stays the 0/0
+/// base case), while silence past the deadline guides instead of hanging
+/// until the harness kills the call with no diagnostic. Pipes and files
+/// keep ordinary blocking reads: a slow producer is legitimate there.
+fn read_stdin_guarded() -> Result<Vec<u8>, (u8, String)> {
+    if io::stdin().is_terminal() {
+        return Err((2, NULL_CALL_GUIDE.to_string()));
+    }
+    #[cfg(unix)]
+    if stdin_is_char_device() {
+        return read_bounded(
+            || {
+                let mut buf = Vec::new();
+                io::stdin().lock().read_to_end(&mut buf).map(|_| buf)
+            },
+            std::time::Duration::from_secs(2),
+        );
+    }
+    let mut buf = Vec::new();
+    io::stdin()
+        .lock()
+        .read_to_end(&mut buf)
+        .map_err(|e| (1, format!("cannot read stdin: {e}")))?;
+    Ok(buf)
+}
+
+#[cfg(unix)]
+fn stdin_is_char_device() -> bool {
+    use std::os::fd::AsFd;
+    use std::os::unix::fs::FileTypeExt;
+    io::stdin()
+        .as_fd()
+        .try_clone_to_owned()
+        .map(fs::File::from)
+        .and_then(|f| f.metadata())
+        .map(|m| m.file_type().is_char_device())
+        .unwrap_or(false)
+}
+
+/// Run `read` on its own thread and give up after `patience`: the
+/// reader thread is deliberately abandoned on timeout — the process
+/// exits immediately with the guide, which is the whole point.
+fn read_bounded(
+    read: impl FnOnce() -> io::Result<Vec<u8>> + Send + 'static,
+    patience: std::time::Duration,
+) -> Result<Vec<u8>, (u8, String)> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(read());
+    });
+    match rx.recv_timeout(patience) {
+        Ok(Ok(buf)) => Ok(buf),
+        Ok(Err(e)) => Err((1, format!("cannot read stdin: {e}"))),
+        Err(_) => Err((
+            2,
+            format!(
+                "{NULL_CALL_GUIDE}\n\n(stdin here is an open device that delivered \
+                 neither data nor end-of-file within 2 seconds — a common agent-harness \
+                 shape; pipe input or name a file)"
+            ),
+        )),
+    }
+}
+
 fn open_store(state_dir: Option<PathBuf>) -> Result<FsStore, (u8, String)> {
     let root = state_dir.unwrap_or_else(FsStore::default_root);
     FsStore::open(root.clone())
@@ -477,15 +566,17 @@ fn age_of(t: std::time::SystemTime) -> String {
 }
 
 fn ls_line(store: &FsStore, e: &moreover::store::CursorEntry) -> String {
-    use moreover::store::Store;
-    let c = e.cursor.as_ref().expect("ls only prints parseable records");
+    use moreover::store::{EntryState, Store};
+    let EntryState::Record { cursor: c, mode } = &e.state else {
+        unreachable!("ls only prints parseable records");
+    };
     let total = store
         .spool_meta(&c.spool)
         .ok()
         .flatten()
         .map(|m| format!("/{}", m.total_lines()))
         .unwrap_or_default();
-    let mode = e.mode.as_deref().unwrap_or("fresh");
+    let mode = mode.as_deref().unwrap_or("fresh");
     format!(
         "{}  page {}  line {}{}  {}  spool {}  {}",
         e.id, c.page, c.line, total, mode, c.spool, age_of(e.modified)
@@ -493,11 +584,19 @@ fn ls_line(store: &FsStore, e: &moreover::store::CursorEntry) -> String {
 }
 
 fn run_ls(everywhere: bool, state_dir: Option<PathBuf>) -> Result<(), (u8, String)> {
+    use moreover::store::EntryState;
     let store = open_store(state_dir)?;
     let entries = store
         .list_cursors()
         .map_err(|e| (1, format!("cannot list cursors: {e}")))?;
-    let records: Vec<_> = entries.iter().filter(|e| e.cursor.is_some()).collect();
+    let records: Vec<_> = entries.iter().filter(|e| e.record().is_some()).collect();
+    // Listing changes nothing, so an unreadable entry doesn't fail it —
+    // but it is surfaced: gc/drop will refuse until it is dealt with.
+    for e in &entries {
+        if let EntryState::Unknown { why } = &e.state {
+            eprintln!("note: cursor record {} is unreadable ({why}); gc and drop will refuse until it is repaired or removed", e.id);
+        }
+    }
 
     if everywhere {
         if records.is_empty() {
@@ -505,7 +604,7 @@ fn run_ls(everywhere: bool, state_dir: Option<PathBuf>) -> Result<(), (u8, Strin
             return Ok(());
         }
         for e in &records {
-            let desk = e.cursor.as_ref().map(|c| c.desk.as_str()).unwrap_or("");
+            let desk = e.record().map(|c| c.desk.as_str()).unwrap_or("");
             let desk = if desk.is_empty() { "(no desk recorded)" } else { desk };
             println!("{}  desk {}", ls_line(&store, e), desk);
         }
@@ -527,7 +626,7 @@ fn run_ls(everywhere: bool, state_dir: Option<PathBuf>) -> Result<(), (u8, Strin
     };
     let mine: Vec<_> = records
         .iter()
-        .filter(|e| e.cursor.as_ref().is_some_and(|c| c.desk == desk))
+        .filter(|e| e.record().is_some_and(|c| c.desk == desk))
         .collect();
     let mut shown = false;
     for e in &mine {
@@ -685,19 +784,7 @@ fn run() -> Result<(), (u8, String)> {
             let input = match &args.input_file {
                 Some(path) => fs::read(path)
                     .map_err(|e| (1, format!("cannot read {}: {e}", path.display())))?,
-                None => {
-                    if io::stdin().is_terminal() {
-                        // The null call: no pipe, no file, no cursor —
-                        // waiting would hang a reader who meant to ask.
-                        return Err((2, NULL_CALL_GUIDE.to_string()));
-                    }
-                    let mut buf = Vec::new();
-                    io::stdin()
-                        .lock()
-                        .read_to_end(&mut buf)
-                        .map_err(|e| (1, format!("cannot read stdin: {e}")))?;
-                    buf
-                }
+                None => read_stdin_guarded()?,
             };
             page_new(&store, &input, args.take, args.unit, args.mint, &mut out)
                 .map_err(|e| (1, format!("cannot page: {e}")))?
@@ -719,5 +806,36 @@ fn main() -> ExitCode {
             let _ = writeln!(io::stderr(), "{msg}");
             ExitCode::from(code)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_never_ending_stdin_guides_instead_of_hanging() {
+        // Regression (Gauge 5's field report, 2026-10-02): under agent
+        // harnesses, bare `moreover` hung for 120s until SIGTERM — the
+        // harness stdin is a character device that is neither a tty
+        // (is_terminal() false, so the old guard never fired) nor an
+        // EOF-delivering stream (so the read never returned). The
+        // bounded read must give up and GUIDE, exit 2, like the tty
+        // null call does.
+        let hang_forever = || -> io::Result<Vec<u8>> {
+            std::thread::sleep(std::time::Duration::from_secs(600));
+            Ok(Vec::new())
+        };
+        let (code, msg) = read_bounded(hang_forever, std::time::Duration::from_millis(50))
+            .expect_err("silence past the deadline must not succeed");
+        assert_eq!(code, 2, "the null-call exit code");
+        assert!(msg.contains("moreover contract"), "it must guide, not just refuse: {msg}");
+        assert!(msg.contains("agent-harness"), "it must name the shape it detected: {msg}");
+
+        // while /dev/null's shape — instant EOF — flows straight
+        // through as the empty-input base case
+        let instant_eof = || -> io::Result<Vec<u8>> { Ok(Vec::new()) };
+        let out = read_bounded(instant_eof, std::time::Duration::from_secs(2)).unwrap();
+        assert!(out.is_empty());
     }
 }

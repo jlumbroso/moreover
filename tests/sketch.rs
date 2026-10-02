@@ -357,3 +357,88 @@ fn identical_streams_share_one_spool() {
     assert_eq!(names.len(), 2, "expected spool + meta, got: {names:?}");
     assert_eq!(names.iter().filter(|n| n.ends_with(".meta")).count(), 1);
 }
+
+#[test]
+fn maintenance_waits_for_an_in_flight_paging_transaction() {
+    // Verbs audit, finding 2: a first page publishes its spool, writes
+    // output, and only then mints its cursor — and gc/drop running in
+    // that window saw an unreferenced spool and freed it, leaving the
+    // minted cursor pointing at nothing. The whole paging sequence now
+    // holds the maintenance lock's shared side; gc takes the exclusive
+    // side and must WAIT. Two real workers, interleaved at exactly the
+    // audited point (first output write = spool published, cursor not
+    // yet), on the real store.
+    use std::sync::mpsc;
+
+    let store = scratch_store("txn");
+    let root = store.root().clone();
+
+    // an unrelated parked cursor, so gc has a store to look at
+    let mut sink = Vec::new();
+    page_new(&store, b"old1\nold2\n", Take::Units(1), Unit::Lines, MintMode::Stable, &mut sink)
+        .unwrap();
+
+    // A Write that announces the first write (we are now INSIDE the
+    // transaction: spool published, cursor still unminted) and then
+    // waits for the test to say maintenance has been attempted.
+    struct Paused {
+        buf: Vec<u8>,
+        announce: Option<mpsc::Sender<()>>,
+        resume: mpsc::Receiver<()>,
+    }
+    impl std::io::Write for Paused {
+        fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+            if let Some(tx) = self.announce.take() {
+                tx.send(()).unwrap();
+                self.resume.recv().unwrap(); // pause delivery here
+            }
+            self.buf.extend_from_slice(data);
+            Ok(data.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let (announce_tx, announce_rx) = mpsc::channel();
+    let (resume_tx, resume_rx) = mpsc::channel();
+    let pager = std::thread::spawn(move || {
+        let store = FsStore::open(root).unwrap();
+        let mut out = Paused { buf: Vec::new(), announce: Some(announce_tx), resume: resume_rx };
+        let trailer =
+            page_new(&store, b"new1\nnew2\nnew3\n", Take::Units(1), Unit::Lines, MintMode::Stable, &mut out)
+                .unwrap();
+        (out.buf, trailer)
+    });
+
+    // delivery has started: the shared lock is held, the new spool is
+    // on disk, its cursor is not
+    announce_rx.recv().unwrap();
+
+    // attempt maintenance mid-transaction; it must block on the lock
+    let gc_root = store.root().clone();
+    let (gc_done_tx, gc_done_rx) = mpsc::channel();
+    let sweeper = std::thread::spawn(move || {
+        let store = FsStore::open(gc_root).unwrap();
+        let report = store.gc(365).unwrap(); // nothing is 365 days old
+        gc_done_tx.send(()).unwrap();
+        report
+    });
+    assert!(
+        gc_done_rx.recv_timeout(std::time::Duration::from_millis(300)).is_err(),
+        "gc must wait for the paging transaction, not run inside it"
+    );
+
+    // let the page finish; both workers then complete
+    resume_tx.send(()).unwrap();
+    let (buf, trailer) = pager.join().unwrap();
+    sweeper.join().unwrap();
+    assert_eq!(buf, b"new1\n");
+
+    // the continuation the trailer promised must still be resumable —
+    // in the broken version gc had freed its spool (NotFound here)
+    let cursor = trailer.cursor.expect("a continuation was promised");
+    let mut rest = Vec::new();
+    page_resume(&store, &cursor, Take::All, Unit::Lines, 0, MintMode::Stable, &mut rest).unwrap();
+    assert_eq!(rest, b"new2\nnew3\n");
+}

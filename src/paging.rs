@@ -35,6 +35,11 @@ pub fn page_new(
     mode: MintMode,
     out: &mut dyn Write,
 ) -> io::Result<TrailerData> {
+    // The whole spool-publish → output → cursor-publish sequence is one
+    // transaction under the maintenance lock's shared side: a concurrent
+    // gc/drop waits instead of freeing the just-published spool before
+    // its cursor exists (ADR-0005 verbs audit, finding 2).
+    let _txn = store.txn_shared()?;
     let spool = store.put_spool(input)?;
     deliver_in_memory(store, &spool, input, 0, 1, take, unit, mode, out)
 }
@@ -52,7 +57,11 @@ pub fn page_resume(
     mode: MintMode,
     out: &mut dyn Write,
 ) -> io::Result<TrailerData> {
+    // Same transaction discipline as page_new (finding 2); and resuming
+    // IS using the cursor, so its record's age refreshes (finding 4).
+    let _txn = store.txn_shared()?;
     let cursor = store.get_cursor(cursor_id)?;
+    store.note_use(cursor_id);
     match (store.spool_meta(&cursor.spool)?, cursor.nl) {
         (Some(meta), Some(nl0)) => {
             resume_bounded(store, &cursor, meta, nl0, take, unit, overlap, mode, out)

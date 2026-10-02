@@ -727,8 +727,102 @@ fn gc_sweeps_by_age_and_spares_the_young() {
     assert!(resumed.status.success(), "a young cursor must survive gc");
     assert_eq!(resumed.stdout, b"U3\nU4\n");
 
-    // gc 0 declares the whole desk finished
+    // gc 0 clears every record in the SELECTED STATE DIRECTORY (all
+    // working directories — the destructive scope the contract states)
     assert!(at_desk(&desk, &state, &["gc", "0"]).status.success());
     let ls = at_desk(&desk, &state, &["ls"]);
     assert!(String::from_utf8_lossy(&ls.stdout).contains("no cursors on this desk"));
+}
+
+#[test]
+#[cfg(unix)]
+fn an_unreadable_record_blocks_destructive_maintenance_entirely() {
+    // Verbs audit, finding 1: an unreadable record was classified like
+    // an empty tombstone — holding no spool references — so dropping U
+    // freed T's saved input while T's record was merely chmod 000.
+    // Destructive work now refuses an incomplete inventory outright.
+    use std::os::unix::fs::PermissionsExt;
+    let state = scratch_dir("unreadable");
+    let desk = scratch_dir("unreadable-desk");
+    let t = desk.join("t.txt");
+    let u = desk.join("u.txt");
+    std::fs::write(&t, b"T1\nT2\nT3\nT4\n").unwrap();
+    std::fs::write(&u, b"U1\nU2\nU3\nU4\n").unwrap();
+    let t_id = cursor_in(&at_desk(&desk, &state, &[t.to_str().unwrap(), "-2"]).stderr);
+    let u_id = cursor_in(&at_desk(&desk, &state, &[u.to_str().unwrap(), "-2"]).stderr);
+
+    let t_rec = state.join("cursors").join(&t_id);
+    std::fs::set_permissions(&t_rec, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    // drop U and gc must both refuse, removing NOTHING
+    for args in [&["drop", u_id.as_str()][..], &["gc", "0"][..]] {
+        let out = at_desk(&desk, &state, args);
+        assert_eq!(out.status.code(), Some(1), "{args:?} must refuse");
+        let err = String::from_utf8(out.stderr).unwrap();
+        assert!(err.contains("cannot inventory"), "{args:?}: {err}");
+        assert!(err.contains("nothing was removed"), "{args:?}: {err}");
+    }
+
+    std::fs::set_permissions(&t_rec, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+    // both streams must remain fully resumable — in the broken version
+    // T's spool was already gone
+    let t_resume = at_desk(&desk, &state, &["-c", &t_id, "--all"]);
+    assert!(t_resume.status.success(), "{}", String::from_utf8_lossy(&t_resume.stderr));
+    assert_eq!(t_resume.stdout, b"T3\nT4\n");
+    let u_resume = at_desk(&desk, &state, &["-c", &u_id, "--all"]);
+    assert!(u_resume.status.success());
+    assert_eq!(u_resume.stdout, b"U3\nU4\n");
+}
+
+#[test]
+#[cfg(unix)]
+fn use_refreshes_gc_age_and_gc_zero_is_unconditional() {
+    // Verbs audit, finding 4: the public wording promised "unused for
+    // DAYS" while gc compared record creation mtime — a stream reused
+    // or resumed today could be swept because it was MINTED ten days
+    // ago. Use (mint, stable reuse, resume) now refreshes the record's
+    // age; and gc 0 means every record, even one with a future mtime.
+    let state = scratch_dir("age");
+    let desk = scratch_dir("age-desk");
+    let t = desk.join("t.txt");
+    std::fs::write(&t, b"T1\nT2\nT3\nT4\n").unwrap();
+    let t_id = cursor_in(&at_desk(&desk, &state, &[t.to_str().unwrap(), "-2"]).stderr);
+
+    let backdate = |id: &str| {
+        assert!(Command::new("touch")
+            .args(["-m", "-t", "202501010000"])
+            .arg(state.join("cursors").join(id))
+            .status()
+            .unwrap()
+            .success());
+    };
+
+    // stable REUSE refreshes: backdate, page the same content again
+    // (adopts the same record), gc 7 must keep it
+    backdate(&t_id);
+    assert!(at_desk(&desk, &state, &[t.to_str().unwrap(), "-2"]).status.success());
+    assert!(at_desk(&desk, &state, &["gc"]).status.success());
+    let resumed = at_desk(&desk, &state, &["-c", &t_id, "--all"]);
+    assert!(resumed.status.success(), "a record reused today is not 'unused': {}",
+        String::from_utf8_lossy(&resumed.stderr));
+    assert_eq!(resumed.stdout, b"T3\nT4\n");
+
+    // explicit RESUME refreshes too (that resume also minted a fresh
+    // successor, but the resumed record's own age must have moved)
+    backdate(&t_id);
+    assert!(at_desk(&desk, &state, &["-c", &t_id, "-1"]).status.success());
+    assert!(at_desk(&desk, &state, &["gc"]).status.success());
+    assert!(at_desk(&desk, &state, &["-c", &t_id, "--all"]).status.success());
+
+    // gc 0 is unconditional: even a future-dated record goes
+    let future = Command::new("touch")
+        .args(["-m", "-t", "203001010000"])
+        .arg(state.join("cursors").join(&t_id))
+        .status()
+        .unwrap();
+    assert!(future.success());
+    assert!(at_desk(&desk, &state, &["gc", "0"]).status.success());
+    let gone = at_desk(&desk, &state, &["-c", &t_id, "--all"]);
+    assert_eq!(gone.status.code(), Some(1), "gc 0 must remove even future-dated records");
 }
