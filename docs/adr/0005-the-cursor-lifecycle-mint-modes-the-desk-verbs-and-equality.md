@@ -3,8 +3,8 @@
 # ADR-0005: The cursor lifecycle — mint modes, the desk verbs, and equality
 
 - **Date**: 2026-09-26
-- **Iteration**: 3
-- **Status**: Partially Implemented
+- **Iteration**: 5
+- **Status**: Implemented
 - **Deciders**: Jérémie Lumbroso (rulings, from the dogfooding seed's QST-MINT-POLICY answer); Ribbon 5 (this record, the concrete design); Lector 6 (the equality analysis this ADR must satisfy)
 
 **TL;DR**: Cursor minting becomes a switchable mode — deterministic ids
@@ -146,7 +146,8 @@ the default moves.
 - [x] Naming authority strike on the mode flags — struck same-day (`--mint stable|fresh`; "Flags assert destinations, never deltas")
 - [x] Implement deterministic mode + assertion flag + `mode=` field - Owner: Ribbon 5 — `0f3f128`; audit repairs follow-up commit
 - [x] Lector 6 pre-release audit — returned with a HOLD; all three findings repaired with the audit's own regression specs (per-desk recency; atomic publication; bounded ladder + exhaustion error + round-trip invariant); language corrections applied above
-- [ ] `ls` / `gc` / `drop` per ADR-0003 — with the Iteration-2 constraint: gc/drop must preserve established triple→id mappings for live triples - Owner: Ribbon 5
+- [x] `ls` / `gc` / `drop` per ADR-0003 — with the Iteration-2 constraint: gc/drop must preserve established triple→id mappings for live triples - Owner: Ribbon 5 — `923178f` (tombstone design, Iteration 5)
+- [ ] Lector 6 pass over the verbs before the v0.4.0 release (new code beyond the cleared stable-mint scope) - Owner: Lector 6
 - [x] Lector 6 re-check of the repairs before the release that carries stable-default - Owner: Lector 6 — cleared `f9631d6`; see final clearance below
 
 ## Iterations
@@ -218,6 +219,45 @@ can also fail, so debris remains possible; no path skips the attempt.
 
 - Contributors: Lector 6 (release condition, CLI reproduction, wording correction); Ribbon 5 (repairs, regression).
 - Outcome: both items closed; release awaits Lector's clearance; `ls`/`gc`/`drop` next, under the mapping-preservation constraint.
+
+### Iteration 5 (2026-10-01) — the lifecycle verbs, implemented (`923178f`)
+
+Lector's final clearance landed (`5059e1d`, below) and lifted the
+stable-mint hold; the verbs followed, honoring the constraint staked in
+the Consequences above. The design decision worth recording:
+
+**Tombstones make removal compatible with replay determinism.** A
+stable id is defined by the ladder walk its mint took — and that walk
+depended on which earlier candidates were *occupied*. So `gc`/`drop`
+compute the protected set (re-walk every surviving stable record's
+ladder; every candidate preceding its own id is protected) and
+truncate protected victims to empty files instead of deleting them.
+The mint walk already climbs an unreadable occupant deterministically
+(the legacy-debris rule, regression-tested since Iteration 2), so a
+tombstone keeps every surviving mapping byte-identical while its
+content — and, when unreferenced, its spool — is gone. A tombstone no
+surviving mapping depends on is swept by the next `gc`. The in-module
+test drives the full cycle: a fresh record on a stable triple's first
+candidate (the natural collision shape), mint-climbs-past, drop
+tombstones it, replay yields the same id, release, sweep clears it.
+
+Verb surface, per ADR-0003's accepted designs: `ls` (this desk;
+`-c last`'s selection marked; the stable-reuse cross-desk case listed
+with a note, so `ls` never hides what `last` would select;
+`--everywhere` for the machine), `drop CURSOR` (unknown ids get
+resume's teaching error; recovery records naming the id are cleared so
+`last` cannot resurrect it), `gc [DAYS]` (**default 7 days** — an
+implementation choice, not a ruling; flagged here for review — `gc 0`
+sweeps all; orphaned spools and stale desk recovery records follow;
+non-record files in the state dir are never touched). Desk verbs never
+read stdin and never print a trailer; `stat` remains reserved.
+
+45 tests green on cargo's own exit code (in-module sweep-cycle test;
+CLI: ls desk/reuse/everywhere, drop lifecycle, age-gated gc via
+touch(1), the graduated reserved-verbs test keeps `stat`'s escape).
+
+- Contributors: Ribbon 5 (design, implementation); Lector 6 (the constraint, by prior analysis).
+- Outcome: `Partially Implemented → Implemented`; v0.4.0 release pending a Lector pass over the verbs (new code beyond the cleared stable-mint scope — the 0.3.0 lesson, applied).
 
 ### Pre-release audit — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-26
 
