@@ -8,7 +8,7 @@ Copies pinned source unchanged, then appends one test module to main.rs
 in an owned disposable checkout below scripts/ephemeral. The test calls
 the actual read_bounded helper with the production read_to_end operation.
 A Unix socket supplies real bytes immediately and withholds EOF; a small
-Read wrapper counts consumed bytes without changing them. The helper
+Read wrapper counts and timestamps consumed bytes without changing them. The helper
 gets a shortened 200ms deadline, not a changed implementation.
 
 This isolates the bounded-reader mechanism. It does not claim to test a
@@ -35,17 +35,21 @@ TEST = r'''
 mod audit_delayed_eof {
     use super::*;
     use std::os::unix::net::UnixStream;
-    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}, mpsc};
-    use std::time::Duration;
+    use std::sync::{Arc, Mutex, mpsc};
+    use std::time::{Duration, Instant};
 
     struct ObservedRead {
         stream: UnixStream,
-        bytes: Arc<AtomicUsize>,
+        observation: Arc<Mutex<(usize, Option<Instant>)>>,
     }
     impl Read for ObservedRead {
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             let n = self.stream.read(buf)?;
-            self.bytes.fetch_add(n, Ordering::SeqCst);
+            if n > 0 {
+                let mut observation = self.observation.lock().unwrap();
+                observation.0 += n;
+                observation.1 = Some(Instant::now());
+            }
             Ok(n)
         }
     }
@@ -55,23 +59,30 @@ mod audit_delayed_eof {
         let (reader, mut writer) = UnixStream::pair().unwrap();
         let early = b"data arrived before the deadline\n";
         writer.write_all(early).unwrap();
-        let seen = Arc::new(AtomicUsize::new(0));
-        let mut observed = ObservedRead { stream: reader, bytes: seen.clone() };
+        let seen = Arc::new(Mutex::new((0, None)));
+        let mut observed = ObservedRead { stream: reader, observation: seen.clone() };
         let (finished_tx, finished_rx) = mpsc::channel();
+        let patience = Duration::from_millis(200);
+        // Start before read_bounded starts its own timeout: consumption
+        // within this interval necessarily precedes the helper's deadline.
+        let started = Instant::now();
         let result = read_bounded(move || {
             let mut buf = Vec::new();
             // The same complete-drain operation used by read_stdin_guarded.
             observed.read_to_end(&mut buf)?;
             finished_tx.send(buf.clone()).unwrap();
             Ok(buf)
-        }, Duration::from_millis(200));
+        }, patience);
 
-        let consumed = seen.load(Ordering::SeqCst);
+        let (consumed, last_consumption) = *seen.lock().unwrap();
         let (code, message) = result.expect_err("pinned helper times the complete drain");
-        assert_eq!(consumed, early.len(), "bytes must actually have arrived before timeout");
+        assert_eq!(consumed, early.len());
+        let consumed_after = last_consumption.expect("real read must have occurred")
+            .duration_since(started);
+        assert!(consumed_after < patience, "bytes must be consumed before the deadline");
         assert_eq!(code, 2);
         assert!(message.contains("neither data nor end-of-file"));
-        println!("consumed_before_timeout={consumed} exit={code} diagnostic={message:?}");
+        println!("consumed_before_timeout={consumed} consumed_after={consumed_after:?} exit={code} diagnostic={message:?}");
 
         // Deliver EOF after the deadline and wait for the reader to finish;
         // this is a finite delayed input, not an unbounded producer.
