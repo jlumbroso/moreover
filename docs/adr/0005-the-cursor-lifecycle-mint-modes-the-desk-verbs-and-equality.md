@@ -3,7 +3,7 @@
 # ADR-0005: The cursor lifecycle — mint modes, the desk verbs, and equality
 
 - **Date**: 2026-09-26
-- **Iteration**: 5
+- **Iteration**: 6
 - **Status**: Implemented
 - **Deciders**: Jérémie Lumbroso (rulings, from the dogfooding seed's QST-MINT-POLICY answer); Ribbon 5 (this record, the concrete design); Lector 6 (the equality analysis this ADR must satisfy)
 
@@ -258,6 +258,64 @@ touch(1), the graduated reserved-verbs test keeps `stat`'s escape).
 
 - Contributors: Ribbon 5 (design, implementation); Lector 6 (the constraint, by prior analysis).
 - Outcome: `Partially Implemented → Implemented`; v0.4.0 release pending a Lector pass over the verbs (new code beyond the cleared stable-mint scope — the 0.3.0 lesson, applied).
+
+### Iteration 6 (2026-10-02) — the verbs audit's five findings, repaired (`3309c5c`)
+
+Lector's verbs pass (below) returned a HOLD with five findings. All
+five are repaired with the audit's own regression specs:
+
+1. **Unknown ≠ tombstone.** `list_cursors` now distinguishes a record,
+   an exactly-empty tombstone, and an *Unknown* (non-empty but
+   unreadable or unparseable). Destructive maintenance refuses the
+   whole pass over any Unknown — "cannot inventory … nothing was
+   removed" — because an unreadable record's spool references are
+   uncertain, and guessing destroyed another cursor's saved input in
+   the audit's probe. Desk recovery records are cleared only when
+   their target is genuinely absent or tombstoned, never on a read
+   failure. `ls` (non-destructive) still lists, and names unreadable
+   entries instead of hiding them. The chmod-000 probe is a CLI
+   regression: drop and gc both refuse; both streams resume intact
+   after permissions return.
+2. **Maintenance and paging are mutually transactional.** The paging
+   sequence (spool publish → output → cursor publish) holds a shared
+   flock on `.txn-lock`; `gc`/`drop` take it exclusively — each waits
+   out the other, closing the audited window where a first page's
+   spool was freed before its cursor existed. The regression pauses
+   real delivery at exactly that point with a barrier Write, proves gc
+   blocks (300ms refusal window), then lets both finish and resumes
+   the continuation (`new2\nnew3\n`).
+3. **Protection is ladder membership, not creation mode.** Stable
+   minting adopts any matching record, so a `mode=fresh` or legacy
+   record can carry an established stable mapping; `protected_ids` now
+   protects the preceding candidates of every survivor whose id occurs
+   on its own ladder, whatever `mode=` says (which stays truthful
+   creation provenance). Both mixed-origin forms are regressions for
+   both verbs; a genuinely random fresh id still protects nothing.
+4. **Age means inactivity, and `gc 0` means all.** Minting, stable
+   reuse, and resume now refresh the record's mtime (`note_use`,
+   best-effort by documented contract: a read-only store must not fail
+   resume, and gc cannot run there anyway; recovery reads per-desk
+   files, so this touch cannot resurrect the old finding 1). `gc 0`
+   removes every record unconditionally, future-dated included. CLI
+   regressions cover reuse-refresh, resume-refresh, and the
+   unconditional zero.
+5. **The destructive scope is stated.** Contract and help now say:
+   gc and drop act on the whole selected state directory, across
+   working directories; `ls --everywhere` is that store, not the
+   machine; the local listing is records first minted here plus the
+   current recovery cursor, not a history of foreign reuse.
+
+Also folded, same commit: **Gauge 5's field report** (pneumatic hive,
+2026-10-02) — under agent harnesses, stdin can be an open non-tty
+character device that never delivers EOF, so bare `moreover` hung until
+SIGTERM instead of guiding. Char-device stdin now gets a 2-second
+bounded read: data or EOF proceeds (the /dev/null 0/0 base case is
+untouched, as their report verified), silence guides and exits 2,
+naming the harness shape. In-binary regression drives the bounded
+reader's both sides. 50 tests green on cargo's own exit code.
+
+- Contributors: Lector 6 (audit, probes, regression specs, scope wording); Gauge 5 (harness-stdin field report, root cause verified); Ribbon 5 (repairs).
+- Outcome: repairs staked; release still held for Lector's re-check of these repairs.
 
 ### Pre-release audit — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-26
 
