@@ -798,6 +798,121 @@ separate from the pinned, deterministic lifecycle reproductions above.
 
 ---
 
+### Verbs repair re-check — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-10-02
+
+**Recommendation: retain a narrowed v0.4.0 hold.** Reviewed runtime repair
+`3309c5c84a22b64c85b54e45e56b340b4c16faab` and Iteration 6 at `9b9e443`;
+the working source and tests match the repaired revision. All **50
+repository tests pass** (9 library unit, 1 binary unit, 25 CLI, 15 sketch).
+The repairs close the main destructive-maintenance defects. Two permission
+cases and the bundled stdin change need the bounded corrections below.
+
+**What is closed.** Original finding 1's uncertain-inventory failure is
+repaired: both destructive verbs refuse an Unknown before removal, and
+recovery cleanup distinguishes missing/empty targets from read failures.
+The new CLI regression preserves both streams across denied access.
+Original finding 3's mixed-origin mapping failure is repaired for fresh
+and legacy survivors, with both verbs covered by the ladder regression.
+Original finding 5's destructive scope is now explicit across working
+directories in the selected state directory; the foreign-reuse listing
+limitation is also stated.
+
+Original finding 2's publication window is closed in the inspected paging
+paths: the shared guard spans spool publication through continuation
+publication, and both maintenance verbs hold the exclusive guard through
+their destructive work. The barrier regression exercises GC against a
+first page; the corresponding drop and resume boundaries were checked in
+source, not through additional concurrent executions. Original finding 4's
+normal writable-record reuse/resume cases and unconditional `gc 0` are
+repaired and tested. The permission qualifications below remain.
+
+**R1. Shared-lock acquisition now prevents read-only exhaustion resume.**
+`txn_shared` opens `.txn-lock` with `create(true).write(true)`
+(`src/store.rs:381–388`). The retained
+[permission probe](../../scripts/ephemeral/2026-10-02-readonly-resume-audit.py)
+creates a real continuation and makes its state directories `0500` and
+files `0400`, then resumes with `Take::All`. This produces no successor
+cursor and succeeded at `923178f`; at `3309c5c` it fails `PermissionDenied`.
+Making only the existing lock file writable restores successful exhaustion
+while the directories, cursor, and spool remain read-only. An older store
+with no lock file also fails after the repair.
+
+This contradicts Iteration 6's explicit intent that a read-only store
+must not fail resume. Preserve exhaustion resume with a safe lock-access
+policy and add regressions for both existing-lock and absent-lock state.
+Do not simply ignore every lock error: that would reopen the maintenance
+race where destructive access is still possible. No claim is made that a
+read-only store can publish a new continuation.
+
+**R2. A writable directory does not guarantee age refresh.** A separate
+case in the same probe leaves all directories and the lock writable,
+backdates a cursor eight days, then makes only its record `0444`. Resume
+to exhaustion succeeds; `note_use` silently skips its write-only open
+(`src/store.rs:391–401`), leaving the timestamp unchanged. `gc 7` immediately
+removes the cursor and its spool. Removing a directory entry does not
+require write permission on that file, so the claim that GC cannot run
+where refresh fails does not cover this case.
+
+Best-effort refresh is an acceptable stated policy, but the current
+contract's qualification, "when the state directory is writable"
+(`src/main.rs:147–148`), is insufficient. Prefer this precise replacement
+if retaining that policy:
+
+> GC uses the cursor record's last recorded use time. Minting, reuse,
+> and resume attempt to refresh it. If that update fails, GC uses the
+> previous timestamp, so a recently used cursor can still be collected.
+
+Pair this with "last recorded use was DAYS or more days ago" in place of
+unqualified "unused for DAYS". Alternatively, make an age-update failure
+observable and define the resulting resume behavior. A regression should
+cover a readable, unwritable cursor inside a writable store; the ordinary
+writable-record test does not cover this boundary. This is a qualification
+of the age promise, not a request to change the accepted seven-day policy.
+
+**R3. The new stdin deadline times the complete drain, not first activity.**
+`read_stdin_guarded` passes `read_to_end` to `read_bounded`
+(`src/main.rs:483–495`), whose channel receives only after that entire
+operation returns (`521–539`). Bytes arriving within two seconds do not
+cancel the timeout if EOF comes later. Such input receives exit 2 and the
+diagnostic that it delivered "neither data nor end-of-file", despite data
+having arrived. Iteration 6 and the source comment promise that data or
+EOF proceeds and only silence times out.
+
+The retained [stdin probe](../../scripts/ephemeral/2026-10-02-stdin-deadline-audit.py)
+uses the unchanged pinned helper and `read_to_end`, with real Unix-socket
+input and a shortened 200ms deadline. A timestamp taken by the reader
+verifies that it consumed all **33 bytes before the timeout** (81.25µs
+after the probe's clock started). The helper still returns that exit-2
+diagnostic.
+Delivering EOF afterward completes the finite 33-byte drain. This is
+helper-level evidence with controlled timing, not a live character-device
+or harness reproduction; ordinary pipe/file input bypasses this helper.
+
+Apply the deadline to initial activity. Once data arrives, continue the
+ordinary drain to EOF; immediate EOF must retain the empty-input result,
+and no initial data or EOF must still produce the bounded guide. Add the
+missing early-data/late-EOF regression alongside the silence and immediate
+EOF cases. If a total-drain deadline is intended instead, that needs an
+explicit policy change and an accurate diagnostic, rather than a claim
+that data proceeds normally.
+
+The two pinned probes are committed at `f7432c2`, with the reader-side
+timing assertion added at `f6d9119`; both ran successfully
+against their named revisions using owned disposable state. They preserve
+the observed defects as historical evidence, not future passing product
+regressions. GPT-6 Astra delegated reviewers contributed inventory/mapping
+review (`contract_audit`), the permission probe and locking review
+(`verbs_concurrency`), and contract/stdin review (`post_claims`). Lector 6
+ran both probes and the full gate, authored the stdin probe, and owns this
+recommendation. This entry changes no product code or attributed decisions.
+
+The subordinate listing/order and argument-wording observations in the
+previous audit remain editorial follow-ups; they do not expand this hold.
+Release clearance awaits R1, R3, and either the accurate best-effort age
+contract or an observable age-update failure policy for R2.
+
+---
+
 ## Links
 
 - Related: the dogfooding seed (QST-MINT-POLICY); ADR-0003 (desk verbs, `-c last`, desk scoping); Lector 6's seed thread (equality)
