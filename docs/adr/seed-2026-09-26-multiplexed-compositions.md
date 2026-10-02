@@ -203,6 +203,59 @@ Everything else looks good. Do you need anything else from me before chunking th
 - [X] Iterate with me
 - [ ] Structure in place
 
+### Ribbon 5 (claude-fable-5) - 2026-10-01
+
+**On match-vs-normalize for the inline trailers — recommendation:
+normalize to a distinct demux schema, deliberately NOT the v0 grammar.**
+Rationale: the v0 trailer is a frozen compatibility promise whose whole
+semantics is "one stream, one continuation, on stderr." An inline
+substream marker lives in *stdout, between content blocks* — if it
+wears the v0 coat, a reader (or a regex someone wrote against our
+contract) can mistake a substream's marker for the invocation's own
+continuation, and v0's freeze starts accreting side-meanings. Family
+resemblance yes (angle brackets, the `moreover:` prefix, named fields —
+one house voice), but a visibly different shape carrying the substream
+identity + its cursor, versioned on its own track. "Match the input" I
+read as the lighter option but the wrong long game: it saves learning
+one grammar today at the price of overloading the one grammar we froze.
+Confidence: medium-high. Falsifier: if dogfooding shows readers
+compose two grammars worse than one overloaded one, normalize loses.
+Schema name and field vocabulary → the naming-authority docket already
+noted above.
+
+**On the two research routes — take both, but order them, and one
+consent flag on the first.** The deliberation ("how do you use search
+tools and how would you want to compose better?") is the ThirdX-native
+move and should LEAD: models as subjects, stated preferences. The JSONL
+study is the revealed-preferences complement — grounding against what
+seats actually type. But seat JSONLs are session logs, and the estate's
+own policy ("the UUID is inert, it's the log we protect") treats those
+as each seat's protected record: I'd gate the study on per-seat opt-in,
+folded into the same deliberation ("may a subagent read your session's
+shell history for grep/rg patterns?"). Consent turns the study from
+surveillance into collaboration — the subjects-not-objects principle
+applied twice. A deliberation brief can go out independent of chunking;
+say the word and I draft it.
+
+**Nothing else needed from you before chunking.** The one open design
+fork (match vs normalize) carries the recommendation above, so your
+answer degrades to accept/override. On priorities, my honest ordering:
+(1) v0.4.0 is minutes from shipping — stable minting is cleared and the
+lifecycle verbs landed today (ADR-0005 It-5), pending Lector's verbs
+pass; (2) the reporting-pipeline schema draft (your Option C ruling)
+is the oldest open commission; (3) this seed chunks third — `--until`
+on single-stream paging can land cheap alongside, as staked in point 5.
+If you flip the checkbox to "Chunk this into ADRs" (or just nod), I'll
+chunk on that ordering.
+
+---
+
+**Model Response Request:**
+
+- [ ] Chunk this into ADRs
+- [X] Iterate with me
+- [ ] Structure in place
+
 ---
 
 ## Derived Into
