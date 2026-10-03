@@ -61,11 +61,13 @@ Desk (subcommands — the standalone world; they never appear in pipes):
   moreover ls           list this directory's cursors (--everywhere:
                         every directory's, in the selected state dir)
   moreover drop CURSOR  declare a parked stream finished; free what it held
-  moreover gc [DAYS]    sweep cursors unused for DAYS days (default: 7;
-                        0 removes every record); orphaned input follows.
-                        Use = minted, reused, or resumed. gc and drop act
-                        on the WHOLE selected state directory, not just
-                        this working directory's cursors.
+  moreover gc [DAYS]    sweep cursors whose last recorded use is DAYS or
+                        more days old (default: 7; 0 removes every
+                        record); orphaned input follows. Mint, reuse,
+                        and resume attempt to refresh that time; a
+                        failed refresh leaves the old one. gc and drop
+                        act on the WHOLE selected state directory, not
+                        just this working directory's cursors.
   (stat: reserved for the desk, not yet available)
   Desk verbs accept --state-dir like the pipe world does.
 
@@ -142,11 +144,12 @@ desk verbs:
   cleared, so -c last there selects an older record or reports none.
   Other cursors are unaffected.
   gc DAYS removes every cursor record in the selected state directory —
-  all working directories — unused for DAYS or more days; gc 0 removes
-  every record unconditionally. Use means minted, reused, or resumed:
-  each refreshes the record's age (when the state directory is
-  writable). It then frees saved input and recovery records nothing
-  references.
+  all working directories — whose last recorded use was DAYS or more
+  days ago; gc 0 removes every record unconditionally. GC uses the
+  cursor record's last recorded use time. Minting, reuse, and resume
+  attempt to refresh it. If that update fails, GC uses the previous
+  timestamp, so a recently used cursor can still be collected. GC then
+  frees saved input and recovery records nothing references.
   When a removed record occupies a slot that a kept stable ID's
   derivation walked past, an empty placeholder file is left in its
   place so that stable IDs stay reproducible; placeholders are swept
@@ -486,13 +489,7 @@ fn read_stdin_guarded() -> Result<Vec<u8>, (u8, String)> {
     }
     #[cfg(unix)]
     if stdin_is_char_device() {
-        return read_bounded(
-            || {
-                let mut buf = Vec::new();
-                io::stdin().lock().read_to_end(&mut buf).map(|_| buf)
-            },
-            std::time::Duration::from_secs(2),
-        );
+        return read_bounded(io::stdin(), std::time::Duration::from_secs(2));
     }
     let mut buf = Vec::new();
     io::stdin()
@@ -515,28 +512,60 @@ fn stdin_is_char_device() -> bool {
         .unwrap_or(false)
 }
 
-/// Run `read` on its own thread and give up after `patience`: the
-/// reader thread is deliberately abandoned on timeout — the process
+/// Read with a deadline on INITIAL ACTIVITY only (re-check R3): the
+/// first byte or an immediate EOF must arrive within `patience`; once
+/// data has arrived, the rest drains with no deadline at all — a slow
+/// producer that has already started is a producer, not a null call.
+/// On timeout the reader thread is deliberately abandoned: the process
 /// exits immediately with the guide, which is the whole point.
 fn read_bounded(
-    read: impl FnOnce() -> io::Result<Vec<u8>> + Send + 'static,
+    mut reader: impl io::Read + Send + 'static,
     patience: std::time::Duration,
 ) -> Result<Vec<u8>, (u8, String)> {
-    let (tx, rx) = std::sync::mpsc::channel();
+    let (first_tx, first_rx) = std::sync::mpsc::channel();
+    let (rest_tx, rest_rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        let _ = tx.send(read());
+        let mut head = vec![0u8; 64 * 1024];
+        match reader.read(&mut head) {
+            Err(e) => {
+                let _ = first_tx.send(Err(e));
+            }
+            Ok(0) => {
+                // immediate EOF: the empty-input base case
+                let _ = first_tx.send(Ok(Vec::new()));
+            }
+            Ok(n) => {
+                head.truncate(n);
+                let _ = first_tx.send(Ok(head));
+                let mut rest = Vec::new();
+                let _ = rest_tx.send(reader.read_to_end(&mut rest).map(|_| rest));
+            }
+        }
     });
-    match rx.recv_timeout(patience) {
-        Ok(Ok(buf)) => Ok(buf),
+    let mut buf = match first_rx.recv_timeout(patience) {
+        Ok(Ok(head)) => head,
+        Ok(Err(e)) => return Err((1, format!("cannot read stdin: {e}"))),
+        Err(_) => {
+            return Err((
+                2,
+                format!(
+                    "{NULL_CALL_GUIDE}\n\n(stdin here is an open device that delivered \
+                     neither data nor end-of-file within 2 seconds — a common agent-harness \
+                     shape; pipe input or name a file)"
+                ),
+            ))
+        }
+    };
+    if buf.is_empty() {
+        return Ok(buf);
+    }
+    match rest_rx.recv() {
+        Ok(Ok(rest)) => {
+            buf.extend_from_slice(&rest);
+            Ok(buf)
+        }
         Ok(Err(e)) => Err((1, format!("cannot read stdin: {e}"))),
-        Err(_) => Err((
-            2,
-            format!(
-                "{NULL_CALL_GUIDE}\n\n(stdin here is an open device that delivered \
-                 neither data nor end-of-file within 2 seconds — a common agent-harness \
-                 shape; pipe input or name a file)"
-            ),
-        )),
+        Err(_) => Err((1, "cannot read stdin: the reader ended unexpectedly".to_string())),
     }
 }
 
@@ -813,6 +842,16 @@ fn main() -> ExitCode {
 mod tests {
     use super::*;
 
+    /// A stdin that stays open and never produces: the harness shape
+    /// Gauge 5 reported (char device, non-tty, no EOF).
+    struct Silence;
+    impl io::Read for Silence {
+        fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
+            std::thread::sleep(std::time::Duration::from_secs(600));
+            Ok(0)
+        }
+    }
+
     #[test]
     fn a_never_ending_stdin_guides_instead_of_hanging() {
         // Regression (Gauge 5's field report, 2026-10-02): under agent
@@ -822,11 +861,7 @@ mod tests {
         // EOF-delivering stream (so the read never returned). The
         // bounded read must give up and GUIDE, exit 2, like the tty
         // null call does.
-        let hang_forever = || -> io::Result<Vec<u8>> {
-            std::thread::sleep(std::time::Duration::from_secs(600));
-            Ok(Vec::new())
-        };
-        let (code, msg) = read_bounded(hang_forever, std::time::Duration::from_millis(50))
+        let (code, msg) = read_bounded(Silence, std::time::Duration::from_millis(50))
             .expect_err("silence past the deadline must not succeed");
         assert_eq!(code, 2, "the null-call exit code");
         assert!(msg.contains("moreover contract"), "it must guide, not just refuse: {msg}");
@@ -834,8 +869,32 @@ mod tests {
 
         // while /dev/null's shape — instant EOF — flows straight
         // through as the empty-input base case
-        let instant_eof = || -> io::Result<Vec<u8>> { Ok(Vec::new()) };
-        let out = read_bounded(instant_eof, std::time::Duration::from_secs(2)).unwrap();
+        let out = read_bounded(io::empty(), std::time::Duration::from_secs(2)).unwrap();
         assert!(out.is_empty());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn early_data_with_late_eof_is_input_not_silence() {
+        // Re-check R3: the first deadline implementation timed the
+        // COMPLETE drain, so bytes arriving well inside the window
+        // still got the "neither data nor end-of-file" guide if EOF
+        // came later. The deadline covers initial activity only; once
+        // data has arrived, the drain runs to EOF with no clock. Real
+        // socket bytes with controlled timing, per the audit probe's
+        // evidence shape.
+        use std::io::Write as _;
+        use std::os::unix::net::UnixStream;
+        let (mut tx, rx) = UnixStream::pair().unwrap();
+        let writer = std::thread::spawn(move || {
+            tx.write_all(b"line 1\n").unwrap(); // well inside the window
+            std::thread::sleep(std::time::Duration::from_millis(400)); // 4x past it
+            tx.write_all(b"line 2\n").unwrap();
+            // drop closes the socket: the late EOF
+        });
+        let out = read_bounded(rx, std::time::Duration::from_millis(100))
+            .expect("data arrived in time; late EOF must not be called silence");
+        writer.join().unwrap();
+        assert_eq!(out, b"line 1\nline 2\n");
     }
 }

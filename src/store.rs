@@ -88,9 +88,13 @@ pub trait Store {
         Ok(None)
     }
     /// Note that a cursor was USED (resumed): refreshes its record's
-    /// age for `gc`'s inactivity window (verbs audit, finding 4).
-    /// Best-effort by design — a read-only state dir must not make
-    /// resume fail, and `gc` cannot run on such a store anyway.
+    /// age for `gc`'s window (verbs audit, finding 4). Best-effort by
+    /// STATED policy (re-check R2): a refresh failure must not fail the
+    /// resume, and gc then uses the previous timestamp — so a recently
+    /// used but unwritable record (0444 inside a writable store, whose
+    /// directory entry gc can still unlink) can be collected. The
+    /// contract says exactly this; it no longer claims the writable-
+    /// store case covers it.
     fn note_use(&self, _id: &str) {}
 }
 
@@ -379,13 +383,39 @@ impl Store for FsStore {
     }
 
     fn txn_shared(&self) -> io::Result<Option<fs::File>> {
-        let f = fs::OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .write(true)
-            .open(self.root.join(".txn-lock"))?;
-        f.lock_shared()?;
-        Ok(Some(f))
+        // Re-check R1: the shared side must not demand write access —
+        // an exhaustion resume on a read-only store is a pure read and
+        // predates the lock. Policy: an EXISTING lock is taken through
+        // a read-only handle (flock needs no write permission); an
+        // absent lock is created when the store allows it; and when
+        // creation is denied for permission reasons, the resume
+        // proceeds uncoordinated — safely, because maintenance cannot
+        // acquire the exclusive side on such a store either
+        // (txn_exclusive's create fails the same way and gc/drop
+        // propagate it). Any OTHER lock error still propagates: only
+        // the provably-maintenance-free case bypasses coordination.
+        let path = self.root.join(".txn-lock");
+        match fs::File::open(&path) {
+            Ok(f) => {
+                f.lock_shared()?;
+                return Ok(Some(f));
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+        match fs::OpenOptions::new().create(true).truncate(false).write(true).open(&path) {
+            Ok(f) => {
+                f.lock_shared()?;
+                Ok(Some(f))
+            }
+            Err(e)
+                if e.kind() == io::ErrorKind::PermissionDenied
+                    || e.raw_os_error() == Some(30) /* EROFS */ =>
+            {
+                Ok(None)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     fn note_use(&self, id: &str) {

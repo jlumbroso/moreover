@@ -826,3 +826,116 @@ fn use_refreshes_gc_age_and_gc_zero_is_unconditional() {
     let gone = at_desk(&desk, &state, &["-c", &t_id, "--all"]);
     assert_eq!(gone.status.code(), Some(1), "gc 0 must remove even future-dated records");
 }
+
+#[test]
+#[cfg(unix)]
+fn exhaustion_resume_survives_a_read_only_store() {
+    // Re-check R1: txn_shared opened .txn-lock for WRITING, so a pure
+    // read — resuming to exhaustion, which mints nothing — failed
+    // PermissionDenied on a read-only store, an operation that worked
+    // before the lock existed. The shared side now takes an existing
+    // lock through a read-only handle, and proceeds uncoordinated only
+    // when the lock cannot be created for permission reasons (where
+    // the exclusive side cannot be acquired either, so there is no
+    // maintenance to coordinate with).
+    use std::os::unix::fs::PermissionsExt;
+    let state = scratch_dir("rostore");
+    let desk = scratch_dir("rostore-desk");
+    let t = desk.join("t.txt");
+    std::fs::write(&t, b"T1\nT2\n").unwrap();
+    let id = cursor_in(&at_desk(&desk, &state, &[t.to_str().unwrap(), "-1"]).stderr);
+
+    let lock_down = |state: &PathBuf| {
+        for sub in ["cursors", "spools", "desks"] {
+            let dir = state.join(sub);
+            if let Ok(entries) = std::fs::read_dir(&dir) {
+                for e in entries.flatten() {
+                    let _ = std::fs::set_permissions(e.path(), std::fs::Permissions::from_mode(0o400));
+                }
+            }
+            let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o500));
+        }
+        let _ = std::fs::set_permissions(state.join(".txn-lock"), std::fs::Permissions::from_mode(0o400));
+        std::fs::set_permissions(state, std::fs::Permissions::from_mode(0o500)).unwrap();
+    };
+    let unlock = |state: &PathBuf| {
+        std::fs::set_permissions(state, std::fs::Permissions::from_mode(0o755)).unwrap();
+        for sub in ["cursors", "spools", "desks"] {
+            let dir = state.join(sub);
+            let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755));
+            if let Ok(entries) = std::fs::read_dir(&dir) {
+                for e in entries.flatten() {
+                    let _ = std::fs::set_permissions(e.path(), std::fs::Permissions::from_mode(0o644));
+                }
+            }
+        }
+        let _ = std::fs::set_permissions(state.join(".txn-lock"), std::fs::Permissions::from_mode(0o644));
+    };
+
+    // case 1: the lock file exists (this store paged after the lock
+    // shipped) but everything is read-only
+    lock_down(&state);
+    let out = at_desk(&desk, &state, &["-c", &id, "--all"]);
+    unlock(&state);
+    assert!(out.status.success(), "existing-lock read-only resume: {}",
+        String::from_utf8_lossy(&out.stderr));
+    assert_eq!(out.stdout, b"T2\n");
+    assert!(String::from_utf8_lossy(&out.stderr).contains("cursor: null"));
+
+    // case 2: a legacy store with NO lock file, also read-only — the
+    // lock cannot be created, and that exact condition proves no
+    // maintenance can run either, so the resume proceeds
+    std::fs::remove_file(state.join(".txn-lock")).unwrap();
+    lock_down(&state);
+    let out = at_desk(&desk, &state, &["-c", &id, "--all"]);
+    unlock(&state);
+    assert!(out.status.success(), "absent-lock read-only resume: {}",
+        String::from_utf8_lossy(&out.stderr));
+    assert_eq!(out.stdout, b"T2\n");
+
+    // and destructive maintenance on that read-only store still fails —
+    // the uncoordinated bypass exists only where this holds
+    std::fs::set_permissions(&state, std::fs::Permissions::from_mode(0o500)).unwrap();
+    let gc = at_desk(&desk, &state, &["gc", "0"]);
+    std::fs::set_permissions(&state, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(gc.status.code(), Some(1), "gc must not run where the resume bypassed the lock");
+}
+
+#[test]
+#[cfg(unix)]
+fn an_unwritable_record_in_a_writable_store_pins_the_stated_age_policy() {
+    // Re-check R2: a readable 0444 record inside a writable store
+    // resumes fine but its refresh silently fails — and gc can still
+    // unlink it (removal needs directory write, not file write). The
+    // contract now states exactly that: refresh is ATTEMPTED; a failed
+    // refresh leaves the previous timestamp, so a recently used cursor
+    // can still be collected. This test pins the stated policy — both
+    // halves of it.
+    use std::os::unix::fs::PermissionsExt;
+    let state = scratch_dir("ropin");
+    let desk = scratch_dir("ropin-desk");
+    let t = desk.join("t.txt");
+    std::fs::write(&t, b"T1\nT2\n").unwrap();
+    let id = cursor_in(&at_desk(&desk, &state, &[t.to_str().unwrap(), "-1"]).stderr);
+
+    let rec = state.join("cursors").join(&id);
+    assert!(Command::new("touch")
+        .args(["-m", "-t", "202501010000"])
+        .arg(&rec)
+        .status()
+        .unwrap()
+        .success());
+    std::fs::set_permissions(&rec, std::fs::Permissions::from_mode(0o444)).unwrap();
+
+    // resume succeeds (refresh failure must not fail the read)...
+    let out = at_desk(&desk, &state, &["-c", &id, "--all"]);
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(out.stdout, b"T2\n");
+
+    // ...and gc then collects it despite today's use: the documented
+    // limit of best-effort refresh, stated in the contract verbatim
+    assert!(at_desk(&desk, &state, &["gc"]).status.success());
+    let gone = at_desk(&desk, &state, &["-c", &id, "--all"]);
+    assert_eq!(gone.status.code(), Some(1),
+        "the stated policy: a failed refresh leaves the old timestamp, so gc may collect");
+}
