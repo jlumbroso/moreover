@@ -75,6 +75,12 @@ gpt-6-astra)`. A request for another participant to land a change applies
 to that named change; it does not transfer authorship or establish a
 standing handoff for later work.
 
+On 2026-10-03, Jérémie explicitly authorized sending the committed
+`f5209a0` verdict to Ribbon through the inbox and wake, and sending future
+audit handoffs the same way. This is standing authorization for those
+audit handoffs; do not ask again for each one. Commit the result and its
+brief, then notify Ribbon and report the actual delivery state.
+
 On registration, hand back for the human's harness configuration, as
 specified in [ONBOARDING, Getting started](../ONBOARDING.md#0-read-before-anything-else-how-to-get-started).
 First proposed assignment after that handoff: review the README rewrite
