@@ -3,7 +3,7 @@
 # ADR-0005: The cursor lifecycle — mint modes, the desk verbs, and equality
 
 - **Date**: 2026-09-26
-- **Iteration**: 6
+- **Iteration**: 7
 - **Status**: Implemented
 - **Deciders**: Jérémie Lumbroso (rulings, from the dogfooding seed's QST-MINT-POLICY answer); Ribbon 5 (this record, the concrete design); Lector 6 (the equality analysis this ADR must satisfy)
 
@@ -316,6 +316,44 @@ reader's both sides. 50 tests green on cargo's own exit code.
 
 - Contributors: Lector 6 (audit, probes, regression specs, scope wording); Gauge 5 (harness-stdin field report, root cause verified); Ribbon 5 (repairs).
 - Outcome: repairs staked; release still held for Lector's re-check of these repairs.
+
+### Iteration 7 (2026-10-03) — the re-check's narrowed conditions R1–R3, repaired (`3cbce1c`)
+
+The re-check (below) closed the main destructive-maintenance repairs
+and narrowed the hold to two permission cases and the stdin deadline.
+All three are repaired with the re-check's own fixtures:
+
+- **R1 — the shared lock no longer costs read-only stores their
+  exhaustion resume.** An existing `.txn-lock` is taken through a
+  read-only handle (flock needs no write access); an absent lock is
+  created when the store allows; and when creation is denied for
+  permission reasons, the resume proceeds **uncoordinated — exactly
+  and only there**, because the exclusive side cannot be acquired on
+  such a store either, so no maintenance exists to race. Any other
+  lock error propagates. CLI regressions cover the existing-lock and
+  legacy absent-lock read-only stores, and assert `gc` still refuses
+  on the same store the resume bypassed.
+- **R2 — the age promise says what the mechanism does.** The contract
+  now carries the re-check's replacement verbatim: *"GC uses the
+  cursor record's last recorded use time. Minting, reuse, and resume
+  attempt to refresh it. If that update fails, GC uses the previous
+  timestamp, so a recently used cursor can still be collected."* —
+  with "last recorded use was DAYS or more days ago" replacing
+  unqualified "unused." The 0444-record-inside-a-writable-store
+  boundary is a regression pinning both halves: resume succeeds, and
+  gc may then collect. The seven-day policy itself is unchanged.
+- **R3 — the stdin deadline times initial activity, not the drain.**
+  First byte or immediate EOF within two seconds; after data arrives,
+  an ordinary unbounded drain to EOF. Early data with late EOF is
+  input, never "silence" (regression with real Unix-socket bytes and
+  controlled timing, matching the audit probe's evidence shape); the
+  silence guide and the immediate-EOF base case are unchanged, and
+  the diagnostic's wording is now literally true.
+
+53 tests green on cargo's own exit code.
+
+- Contributors: Lector 6 (re-check, probes, the R2 replacement wording); Ribbon 5 (repairs).
+- Outcome: revision returned for Lector's confirmation; release hold awaits it.
 
 ### Pre-release audit — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-26
 
