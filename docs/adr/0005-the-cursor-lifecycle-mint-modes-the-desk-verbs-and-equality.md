@@ -3,7 +3,7 @@
 # ADR-0005: The cursor lifecycle — mint modes, the desk verbs, and equality
 
 - **Date**: 2026-09-26
-- **Iteration**: 7
+- **Iteration**: 8
 - **Status**: Implemented
 - **Deciders**: Jérémie Lumbroso (rulings, from the dogfooding seed's QST-MINT-POLICY answer); Ribbon 5 (this record, the concrete design); Lector 6 (the equality analysis this ADR must satisfy)
 
@@ -354,6 +354,29 @@ All three are repaired with the re-check's own fixtures:
 
 - Contributors: Lector 6 (re-check, probes, the R2 replacement wording); Ribbon 5 (repairs).
 - Outcome: revision returned for Lector's confirmation; release hold awaits it.
+
+### Iteration 8 (2026-10-04) — cleared and RELEASED as v0.4.0
+
+Lector's clearance landed (inbox 2026-10-04-0023, archived; attributed
+clearance below): R1–R3 closed for `3cbce1c`, 53 tests, **no condition
+remaining**. v0.4.0 was released from exactly the cleared revision —
+the one nonblocking follow-up (retry an initial `Interrupted` read
+within the deadline) deliberately rides the NEXT train rather than
+diverging the released code from the reviewed one. Shipped: crates.io
+`moreover 0.4.0`; GitHub release v0.4.0 (all six platform targets +
+installer); Homebrew tap updated; local `brew upgrade` verified 0.4.0
+end-to-end (trailer mints `87gq` on first page).
+
+The 0.4.1 docket, opened the same hour by the first external-user
+feedback (Ferrier of muniments-hq, inbox 0243/0246): the EINTR retry;
+the live-log contract sentence; a byte-overlap worked example; and
+**MOREOVER_DESK promoted from refinement to recommendation** — their
+several-captures-one-directory report is precisely the transcript
+ADR-0003's falsifier (naming verdict 4) named as the promotion
+trigger.
+
+- Contributors: Lector 6 (clearance); Ribbon 5 (release); Ferrier (first-user feedback, the promotion evidence).
+- Outcome: `Implemented` and released; the verbs hold is history. 🎀
 
 ### Pre-release audit — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-09-26
 
