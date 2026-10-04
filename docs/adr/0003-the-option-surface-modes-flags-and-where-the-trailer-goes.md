@@ -403,7 +403,7 @@ Yep, Option A it is, Mint outdid themselves once more. And I think `moreover con
 
 ### QST-RECENCY-WORD: Is `-c last` misnamed — and what is the recency word?
 
-- Status: routed to the naming authority, 2026-10-04, at Jérémie's commission
+- Status: answered — struck `-c latest` by the naming authority, same-hour 2026-10-04; swept same-hour; closed at Jérémie's request
 - Why asking: Jérémie's ruling-in-part (2026-10-04): the feature is
   "*very* good and *very* useful, but terribly misnamed." His proof is
   observational — explanations of the feature keep reaching for OTHER
@@ -421,6 +421,28 @@ Yep, Option A it is, Mint outdid themselves once more. And I think `moreover con
   story forever after.
 - Need: the struck word; and whether the old value gets a mercy alias
   or a clean break.
+
+**ANS:** (the naming authority, same-hour 2026-10-04, relayed by
+Ribbon 5) **Struck: `-c latest`** (confidence 0.8, concurring with his
+directional). Grounds beyond his: the temporality cut is exact, and
+"last" carries the lethal false reading *final* while sitting beside
+`cursor: null`, which really is final; canonical ecosystem precedent —
+docker's `:latest` and npm's `latest` dist-tag are THE established
+word for a floating reference re-resolved at use, exactly per-desk
+recency's semantics; mechanics inherit free (six letters, all-alpha,
+visibly not an id). Survivors priced: `current` (implies a settable
+singleton), `head` (jargon import, id-shaped at 4 chars), `newest`
+(lies for a reused old cursor), `recent` (not superlative). His proof
+method is now doctrine — **the explainer's-betrayal test**: when the
+feature's most fluent speaker cannot use its name in the explaining
+sentence, the name has already been falsified in the wild.
+Compatibility (the authority's lean; his ear may still adjust):
+**break clean, pre-announcement — a signpost, not an alias.** "last"
+is recognized and rejected with a one-line pointer for one minor
+version, then nothing: an alias would make the misreading immortal in
+the contract, and silence would let early adopters keep learning the
+wrong temporality. Swept same-hour: code, help, contract, README
+(regenerated), tests; signpost regression added.
 
 ## Action Items
 

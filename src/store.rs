@@ -14,7 +14,7 @@ use std::path::PathBuf;
 /// `line` and `page` ride along so trailers can report position without
 /// re-scanning the spool. `desk` is the mint-time working directory
 /// (ADR-0003's desk scoping): shells die between a reader's invocations,
-/// but the working directory survives — so `-c last` can mean "MY last"
+/// but the working directory survives — so `-c latest` can mean "MY latest"
 /// on a machine full of concurrent readers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cursor {
@@ -340,7 +340,7 @@ impl Store for FsStore {
                     format!(
                         "cursor {id} was minted, but this directory's recovery \
                          record could not be updated ({e}) — resume with the \
-                         printed id; `-c last` here may be stale until the \
+                         printed id; `-c latest` here may be stale until the \
                          state dir is writable"
                     ),
                 )
@@ -472,13 +472,13 @@ impl FsStore {
         Ok(())
     }
 
-    /// The newest cursor MINTED OR REUSED from `desk` — `-c last`'s
+    /// The newest cursor MINTED OR REUSED from `desk` — `-c latest`'s
     /// resolver (ADR-0003; shipped on first-contact field evidence).
     /// Primary source: the per-desk recency file (audit finding 1 —
     /// under stable minting a record's stored desk is its FIRST
     /// writer's, so desk recovery must never route through the shared
     /// record). Fallback for pre-upgrade state: the record scan.
-    pub fn last_cursor_for_desk(&self, desk: &str) -> io::Result<Option<String>> {
+    pub fn latest_cursor_for_desk(&self, desk: &str) -> io::Result<Option<String>> {
         if desk.is_empty() {
             return Ok(None);
         }
@@ -729,10 +729,10 @@ impl FsStore {
 
     /// Delete spools (and their .meta sidecars) no surviving record
     /// references, and desk recovery records that name an ABSENT cursor
-    /// (so `-c last` falls back to the legacy scan instead of reporting
+    /// (so `-c latest` falls back to the legacy scan instead of reporting
     /// damage that a deliberate sweep, not corruption, created). A desk
     /// record naming a present-but-unreadable cursor is left alone: that
-    /// is possible damage for `-c last` to surface, not proof of
+    /// is possible damage for `-c latest` to surface, not proof of
     /// retirement (verbs audit, finding 1).
     fn sweep_orphans(&self, referenced: &std::collections::HashSet<String>) -> io::Result<(usize, usize)> {
         let mut spools_freed = 0;

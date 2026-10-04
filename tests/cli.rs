@@ -311,12 +311,12 @@ fn piped_empty_input_is_not_a_null_call() {
 }
 
 #[test]
-fn c_last_resumes_this_desks_newest_cursor_only() {
+fn c_latest_resumes_this_desks_newest_cursor_only() {
     // Regression for a second model reader's first-contact failure
     // (field report, 2026-09-23): their first invocation appended
     // 2>/dev/null out of trained habit, destroying the trailer and
     // orphaning a cursor they never saw — and v0.2.0 had no in-band
-    // recovery. `-c last` is that recovery, desk-scoped so "my last"
+    // recovery. `-c latest` is that recovery, desk-scoped so "my last"
     // never resumes a concurrent reader's stream from another directory.
     let state = scratch_dir("last");
     let desk_a = scratch_dir("last-desk-a");
@@ -335,7 +335,7 @@ fn c_last_resumes_this_desks_newest_cursor_only() {
 
     // Recovery from desk A: last finds the orphaned cursor.
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
-    cmd.args(["-c", "last", "-3"])
+    cmd.args(["-c", "latest", "-3"])
         .current_dir(&desk_a)
         .env("MOREOVER_STATE_DIR", &state).env_remove("MOREOVER_TRAILER")
         .stdout(Stdio::piped())
@@ -346,7 +346,7 @@ fn c_last_resumes_this_desks_newest_cursor_only() {
 
     // Desk B minted nothing: last must refuse and teach, not guess.
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
-    cmd.args(["-c", "last", "-3"])
+    cmd.args(["-c", "latest", "-3"])
         .current_dir(&desk_b)
         .env("MOREOVER_STATE_DIR", &state).env_remove("MOREOVER_TRAILER")
         .stdout(Stdio::null())
@@ -358,7 +358,7 @@ fn c_last_resumes_this_desks_newest_cursor_only() {
 }
 
 #[test]
-fn c_last_remains_selectable_after_exhaustion_and_complete_new_input() {
+fn c_latest_remains_selectable_after_exhaustion_and_complete_new_input() {
     // `last` looks up a saved cursor, not the last invocation's completion
     // state. Finishing a stream, or fully consuming a new short input,
     // mints no successor: another `last` can replay the earlier remainder.
@@ -383,7 +383,7 @@ fn c_last_remains_selectable_after_exhaustion_and_complete_new_input() {
     assert_eq!(first.stdout, lines(2));
     let remainder = b"l3\nl4\nl5\n";
     for _ in 0..2 {
-        let finished = invoke(&["-c", "last", "--all"]);
+        let finished = invoke(&["-c", "latest", "--all"]);
         assert!(finished.status.success());
         assert_eq!(finished.stdout, remainder);
         assert!(String::from_utf8_lossy(&finished.stderr).contains("cursor: null>"));
@@ -394,7 +394,7 @@ fn c_last_remains_selectable_after_exhaustion_and_complete_new_input() {
     assert_eq!(complete_new_input.stdout, b"new input\n");
     assert!(String::from_utf8_lossy(&complete_new_input.stderr).contains("cursor: null>"));
 
-    let older_remainder = invoke(&["-c", "last", "--all"]);
+    let older_remainder = invoke(&["-c", "latest", "--all"]);
     assert!(older_remainder.status.success());
     assert_eq!(older_remainder.stdout, remainder);
 }
@@ -404,7 +404,7 @@ fn stable_reuse_across_desks_keeps_each_desks_recovery_intact() {
     // Regression for the pre-release audit's finding 1, reproducing its
     // exact table: under stable minting, desk B paging the same content
     // as desk A REUSES A's record (first-writer desk retained) — and in
-    // the broken version, B then had no `-c last` recovery while B's
+    // the broken version, B then had no `-c latest` recovery while B's
     // touch also hijacked A's selection. Per-desk recency files fix
     // both: each desk recovers its OWN most recent use.
     let state = scratch_dir("stabledesk");
@@ -433,13 +433,13 @@ fn stable_reuse_across_desks_keeps_each_desks_recovery_intact() {
     assert!(page(&desk_b, &[t_doc.to_str().unwrap(), "-2"]).status.success());
 
     // B recovers the cursor it was just handed (the audit's failing row)
-    let b_last = page(&desk_b, &["-c", "last", "--all"]);
+    let b_last = page(&desk_b, &["-c", "latest", "--all"]);
     assert!(b_last.status.success(), "{}", String::from_utf8_lossy(&b_last.stderr));
     assert_eq!(b_last.stdout, b"T3\nT4\n");
 
     // and A's own recovery is undisturbed by B's activity: A's most
     // recent use is still U
-    let a_last = page(&desk_a, &["-c", "last", "--all"]);
+    let a_last = page(&desk_a, &["-c", "latest", "--all"]);
     assert!(a_last.status.success(), "{}", String::from_utf8_lossy(&a_last.stderr));
     assert_eq!(a_last.stdout, b"U3\nU4\n");
 }
@@ -448,7 +448,7 @@ fn stable_reuse_across_desks_keeps_each_desks_recovery_intact() {
 #[cfg(unix)]
 fn a_failed_recovery_update_is_an_error_naming_the_minted_cursor() {
     // Re-check finding 1: the desks/ update was best-effort — with
-    // desks/ unwritable, paging still exited 0 while `-c last` silently
+    // desks/ unwritable, paging still exited 0 while `-c latest` silently
     // pointed at an older stream. The failure now propagates, and the
     // diagnostic names the minted id the reader would otherwise lose.
     use std::os::unix::fs::PermissionsExt;
@@ -484,7 +484,7 @@ fn a_failed_recovery_update_is_an_error_naming_the_minted_cursor() {
 #[test]
 fn a_damaged_recovery_record_reports_instead_of_selecting_an_older_stream() {
     // Re-check finding 1, read side: present-but-bad recovery state is
-    // damage, not legacy absence — `-c last` must say so, never silently
+    // damage, not legacy absence — `-c latest` must say so, never silently
     // hand back an older stream.
     let state = scratch_dir("recdamage");
     let desk = scratch_dir("recdamage-desk");
@@ -511,7 +511,7 @@ fn a_damaged_recovery_record_reports_instead_of_selecting_an_older_stream() {
         .unwrap();
     std::fs::write(&rec, b"garbage\n").unwrap();
 
-    let out = page(&["-c", "last", "--all"]);
+    let out = page(&["-c", "latest", "--all"]);
     assert_eq!(out.status.code(), Some(1));
     let err = String::from_utf8(out.stderr).unwrap();
     assert!(err.contains("malformed"), "damage must be reported, not scanned around: {err}");
@@ -570,7 +570,7 @@ fn a_recovery_record_naming_a_foreign_desk_is_damage_not_a_collision() {
         .join("\n");
     std::fs::write(&rec, forged + "\n").unwrap();
 
-    let out = page(&["-c", "last", "--all"]);
+    let out = page(&["-c", "latest", "--all"]);
     assert_eq!(out.status.code(), Some(1), "detectable damage must be an error, not a scan");
     assert!(out.stdout.is_empty(), "no page content may accompany the damage error");
     let err = String::from_utf8(out.stderr).unwrap();
@@ -634,7 +634,7 @@ fn cursor_in(stderr: &[u8]) -> String {
     tail.split('>').next().unwrap().trim().to_string()
 }
 
-/// Build a desk-aware invocation (cwd matters to `ls` and `-c last`).
+/// Build a desk-aware invocation (cwd matters to `ls` and `-c latest`).
 fn at_desk(desk: &PathBuf, state: &PathBuf, args: &[&str]) -> Output {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_moreover"));
     cmd.args(args)
@@ -652,7 +652,7 @@ fn ls_shows_this_desks_cursors_and_marks_recovery() {
     // The first-contact field report's ask, and the audit's table shape:
     // a reader asking "what streams do I have parked HERE?" — including
     // the stable-reuse case where this desk's newest cursor was minted
-    // from another directory (`ls` must not hide what `-c last` selects).
+    // from another directory (`ls` must not hide what `-c latest` selects).
     let state = scratch_dir("ls");
     let desk_a = scratch_dir("ls-a");
     let desk_b = scratch_dir("ls-b");
@@ -663,12 +663,12 @@ fn ls_shows_this_desks_cursors_and_marks_recovery() {
     assert!(paged.status.success());
     let t_id = cursor_in(&paged.stderr);
 
-    // A sees its cursor, marked as what `-c last` would select
+    // A sees its cursor, marked as what `-c latest` would select
     let ls_a = at_desk(&desk_a, &state, &["ls"]);
     assert!(ls_a.status.success(), "{}", String::from_utf8_lossy(&ls_a.stderr));
     let listing = String::from_utf8(ls_a.stdout).unwrap();
     assert!(listing.contains(&t_id), "listing must name the cursor: {listing}");
-    assert!(listing.contains("<- last"), "the recovery selection must be marked: {listing}");
+    assert!(listing.contains("<- latest"), "the recovery selection must be marked: {listing}");
     // a cursor names the NEXT position: after one 2-line page of a
     // 4-line input, the parked position is page 2, 2 lines consumed
     assert!(listing.contains("page 2"), "position belongs in the listing: {listing}");
@@ -698,7 +698,7 @@ fn ls_shows_this_desks_cursors_and_marks_recovery() {
 fn drop_retires_a_cursor_its_spool_and_its_recovery_record() {
     // ADR-0003's gloss: "declare a parked stream finished." After drop,
     // the id must stop resolving, the saved input must be freed when
-    // nothing else references it, and `-c last` must not resurrect it.
+    // nothing else references it, and `-c latest` must not resurrect it.
     let state = scratch_dir("drop");
     let desk = scratch_dir("drop-desk");
     let t = desk.join("t.txt");
@@ -716,7 +716,7 @@ fn drop_retires_a_cursor_its_spool_and_its_recovery_record() {
     assert_eq!(resumed.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&resumed.stderr).contains("unknown cursor"));
 
-    let last = at_desk(&desk, &state, &["-c", "last", "--all"]);
+    let last = at_desk(&desk, &state, &["-c", "latest", "--all"]);
     assert_eq!(last.status.code(), Some(1), "recovery must not resurrect a dropped stream");
     assert!(String::from_utf8_lossy(&last.stderr).contains("no cursors were minted"));
 
@@ -976,4 +976,24 @@ fn an_unwritable_record_in_a_writable_store_pins_the_stated_age_policy() {
     let gone = at_desk(&desk, &state, &["-c", &id, "--all"]);
     assert_eq!(gone.status.code(), Some(1),
         "the stated policy: a failed refresh leaves the old timestamp, so gc may collect");
+}
+
+#[test]
+fn the_old_word_last_gets_a_signpost_not_an_alias() {
+    // The naming strike (ADR-0003 QST-RECENCY-WORD): "last" read as
+    // absolute/final temporality — hazardous beside cursor: null, which
+    // really is final — while the feature selects RELATIVELY (this
+    // desk's most recently used, re-resolved per call). The ruling's
+    // compatibility lean: break clean pre-announcement; the old word is
+    // recognized and rejected with a pointer for one minor version
+    // (never a silent alias, which would teach the wrong word forever).
+    let state = scratch_dir("signpost");
+    run(&state, &["-2"], Some(&lines(4)));
+    for spelling in ["last", "LAST", "Last"] {
+        let out = run(&state, &["-c", spelling, "--all"], None);
+        assert_eq!(out.status.code(), Some(2), "'{spelling}' must be rejected, not aliased");
+        let err = String::from_utf8(out.stderr).unwrap();
+        assert!(err.contains("use 'latest'"), "the rejection must point: {err}");
+        assert!(out.stdout.is_empty(), "no content may ride a rejected word");
+    }
 }

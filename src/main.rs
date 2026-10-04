@@ -36,8 +36,10 @@ Resumption:
   -c, --cursor ID       resume the stream that ID names
                         (a cursor is only valid if moreover printed it —
                         never invent or extrapolate one)
-  -c last               select the newest saved cursor for this working
-                        directory in the selected state directory
+  -c latest             select the most recently used saved cursor for
+                        this working directory in the selected state dir
+                        (renamed from last, which now errors with a
+                        pointer here)
   --mint stable|fresh   cursor-id policy, asserted (default: stable —
                         the same resume repeated yields the same next
                         cursor; fresh mints a new id every time)
@@ -114,7 +116,7 @@ invocations:
   stdin:    <producer> | moreover -10
   file:     moreover FILE -10
   resume:   moreover -c CURSOR --all
-  recover:  moreover -c last
+  recover:  moreover -c latest
   contract: moreover contract
   list:     moreover ls
   drop:     moreover drop CURSOR
@@ -132,7 +134,7 @@ desk verbs:
   ls lists the cursors first minted from this working directory, one
   per line, newest first: ID, page, line (with the saved input's total
   when known), creation mode, the saved input's name, and age. The line
-  -c last would select is marked. If the current recovery cursor was
+  -c latest would select is marked. If the current recovery cursor was
   minted from another directory, it is listed with that note; the
   listing is not a history of every foreign cursor ever reused here.
   ls --everywhere lists every directory's cursors in the selected state
@@ -141,7 +143,7 @@ desk verbs:
   drop CURSOR removes that cursor's record FOR EVERY directory that
   uses it. Saved input still referenced by another cursor is kept;
   otherwise it is freed. Recovery records naming the dropped cursor are
-  cleared, so -c last there selects an older record or reports none.
+  cleared, so -c latest there selects an older record or reports none.
   Other cursors are unaffected.
   gc DAYS removes every cursor record in the selected state directory —
   all working directories — whose last recorded use was DAYS or more
@@ -213,7 +215,7 @@ shell redirection (MOREOVER_TRAILER unset; no --trailer flag):
 
 cursors:
   Use a printed cursor ID — never invent or extrapolate one.
-  The reserved word last selects a saved cursor as described below.
+  The reserved word latest selects a saved cursor as described below.
   A cursor fixes a position in saved input, not page size, unit, or overlap.
   Resuming a printed cursor ID with the same page size, unit, and overlap
   repeats the same content. The next cursor ID may differ.
@@ -228,19 +230,22 @@ cursors:
   resume mints a new ID. mode= in a record names its creation mode.
   No mode creates a successor when the trailer says cursor: null.
 
-last (recovery):
-  -c last selects this working directory's most recently used cursor,
+latest (recovery):
+  -c latest selects this working directory's most recently used cursor,
   from a per-directory recovery record in the state directory. Records
   from before this mechanism are matched by their stored directory
   instead. No matching record is an error; a damaged recovery record is
   reported as an error rather than silently selecting an older stream.
-  last is resolved again on each call. Other invocations in the same
+  latest is resolved again on each call. Other invocations in the same
   working directory and state directory can change its selection,
   including to another stream. Use a printed ID for a fixed position.
-  A call that creates no cursor leaves last unchanged, even at exhaustion.
-  Stop at cursor: null; another -c last can repeat already-read content.
-  Older records without a working directory do not match last;
+  A call creating no cursor leaves latest unchanged, even at exhaustion.
+  Stop at cursor: null; another -c latest can repeat already-read content.
+  Older records without a working directory do not match latest;
   they can still be resumed by their printed IDs.
+  The former name last was renamed to latest; -c last is rejected with
+  an error naming the replacement. That error will be removed later;
+  do not rely on either behavior of last.
 
 state (first applicable entry wins):
   --state-dir PATH > $MOREOVER_STATE_DIR > $XDG_STATE_HOME/moreover
@@ -646,7 +651,7 @@ fn run_ls(everywhere: bool, state_dir: Option<PathBuf>) -> Result<(), (u8, Strin
     // per-desk recovery file knows; the shared record keeps its first
     // writer's desk). A damaged recovery record is surfaced, not fatal:
     // the listing still stands on the records themselves.
-    let recovery = match store.last_cursor_for_desk(&desk) {
+    let recovery = match store.latest_cursor_for_desk(&desk) {
         Ok(id) => id,
         Err(e) => {
             eprintln!("note: this desk's recovery record is unusable ({e})");
@@ -659,7 +664,7 @@ fn run_ls(everywhere: bool, state_dir: Option<PathBuf>) -> Result<(), (u8, Strin
         .collect();
     let mut shown = false;
     for e in &mine {
-        let mark = if Some(e.id.as_str()) == recovery.as_deref() { "  <- last" } else { "" };
+        let mark = if Some(e.id.as_str()) == recovery.as_deref() { "  <- latest" } else { "" };
         println!("{}{}", ls_line(&store, e), mark);
         shown = true;
     }
@@ -667,7 +672,7 @@ fn run_ls(everywhere: bool, state_dir: Option<PathBuf>) -> Result<(), (u8, Strin
         if !mine.iter().any(|e| &e.id == id) {
             if let Some(e) = records.iter().find(|e| &e.id == id) {
                 println!(
-                    "{}  <- last (minted from another directory; reused here)",
+                    "{}  <- latest (minted from another directory; reused here)",
                     ls_line(&store, e)
                 );
                 shown = true;
@@ -775,15 +780,24 @@ fn run() -> Result<(), (u8, String)> {
     let store = FsStore::open(root.clone())
         .map_err(|e| (1, format!("cannot open state dir {}: {e}", root.display())))?;
 
-    // `last` is reserved resume vocabulary (never mintable: ids always mix
-    // letters and digits) — resolved against this directory's desk before
-    // the id path, so it is never case-folded like a minted id would be.
+    // `latest` is reserved resume vocabulary (never mintable: ids always
+    // mix letters and digits) — resolved against this directory's desk
+    // before the id path, so it is never case-folded like a minted id
+    // would be. Struck from `last` by the naming authority (ADR-0003
+    // QST-RECENCY-WORD): "last" read as absolute/final temporality while
+    // the feature is a relative selection re-resolved per call. The old
+    // word gets a SIGNPOST, not an alias — recognized, rejected,
+    // pointing — for one minor version, then nothing.
     let cursor = match &args.cursor {
         Some(id) if id.eq_ignore_ascii_case("last") => {
+            return Err((2, "'last' was renamed: use 'latest' (the desk's most \
+                            recently used cursor)".to_string()));
+        }
+        Some(id) if id.eq_ignore_ascii_case("latest") => {
             let desk = std::env::current_dir()
                 .map(|p| p.display().to_string())
                 .unwrap_or_default();
-            match store.last_cursor_for_desk(&desk) {
+            match store.latest_cursor_for_desk(&desk) {
                 Ok(Some(id)) => Some(id),
                 Ok(None) => {
                     return Err((1, format!(
@@ -792,7 +806,7 @@ fn run() -> Result<(), (u8, String)> {
                          cursor; run `moreover contract` for the rules"
                     )));
                 }
-                Err(e) => return Err((1, format!("cannot resolve last: {e}"))),
+                Err(e) => return Err((1, format!("cannot resolve latest: {e}"))),
             }
         }
         other => other.clone(),

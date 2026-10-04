@@ -76,11 +76,11 @@ them again. Resuming the same cursor with the same size, unit, and overlap
 repeats the same content.
 
 If the printed cursor is lost — scrolled away, or compacted out of a
-model's context — `moreover -c last` recovers it: `last` selects the
+model's context — `moreover -c latest` recovers it: `latest` selects the
 cursor most recently used *from the current working directory*, so
 concurrent readers in other directories don't collide. It answers
 "which stream?", not "how much?": pair it with a page size or `--all`
-like any resume (`moreover -c last --all`).
+like any resume (`moreover -c latest --all`).
 
 Content goes to stdout and the trailer to stderr by default. If your
 caller captures only stdout, use `--trailer stdout`. Use `--trailer none`
@@ -129,8 +129,10 @@ Resumption:
   -c, --cursor ID       resume the stream that ID names
                         (a cursor is only valid if moreover printed it —
                         never invent or extrapolate one)
-  -c last               select the newest saved cursor for this working
-                        directory in the selected state directory
+  -c latest             select the most recently used saved cursor for
+                        this working directory in the selected state dir
+                        (renamed from last, which now errors with a
+                        pointer here)
   --mint stable|fresh   cursor-id policy, asserted (default: stable —
                         the same resume repeated yields the same next
                         cursor; fresh mints a new id every time)
@@ -191,7 +193,7 @@ invocations:
   stdin:    <producer> | moreover -10
   file:     moreover FILE -10
   resume:   moreover -c CURSOR --all
-  recover:  moreover -c last
+  recover:  moreover -c latest
   contract: moreover contract
   list:     moreover ls
   drop:     moreover drop CURSOR
@@ -209,7 +211,7 @@ desk verbs:
   ls lists the cursors first minted from this working directory, one
   per line, newest first: ID, page, line (with the saved input's total
   when known), creation mode, the saved input's name, and age. The line
-  -c last would select is marked. If the current recovery cursor was
+  -c latest would select is marked. If the current recovery cursor was
   minted from another directory, it is listed with that note; the
   listing is not a history of every foreign cursor ever reused here.
   ls --everywhere lists every directory's cursors in the selected state
@@ -218,7 +220,7 @@ desk verbs:
   drop CURSOR removes that cursor's record FOR EVERY directory that
   uses it. Saved input still referenced by another cursor is kept;
   otherwise it is freed. Recovery records naming the dropped cursor are
-  cleared, so -c last there selects an older record or reports none.
+  cleared, so -c latest there selects an older record or reports none.
   Other cursors are unaffected.
   gc DAYS removes every cursor record in the selected state directory —
   all working directories — whose last recorded use was DAYS or more
@@ -290,7 +292,7 @@ shell redirection (MOREOVER_TRAILER unset; no --trailer flag):
 
 cursors:
   Use a printed cursor ID — never invent or extrapolate one.
-  The reserved word last selects a saved cursor as described below.
+  The reserved word latest selects a saved cursor as described below.
   A cursor fixes a position in saved input, not page size, unit, or overlap.
   Resuming a printed cursor ID with the same page size, unit, and overlap
   repeats the same content. The next cursor ID may differ.
@@ -305,19 +307,22 @@ cursors:
   resume mints a new ID. mode= in a record names its creation mode.
   No mode creates a successor when the trailer says cursor: null.
 
-last (recovery):
-  -c last selects this working directory's most recently used cursor,
+latest (recovery):
+  -c latest selects this working directory's most recently used cursor,
   from a per-directory recovery record in the state directory. Records
   from before this mechanism are matched by their stored directory
   instead. No matching record is an error; a damaged recovery record is
   reported as an error rather than silently selecting an older stream.
-  last is resolved again on each call. Other invocations in the same
+  latest is resolved again on each call. Other invocations in the same
   working directory and state directory can change its selection,
   including to another stream. Use a printed ID for a fixed position.
-  A call that creates no cursor leaves last unchanged, even at exhaustion.
-  Stop at cursor: null; another -c last can repeat already-read content.
-  Older records without a working directory do not match last;
+  A call creating no cursor leaves latest unchanged, even at exhaustion.
+  Stop at cursor: null; another -c latest can repeat already-read content.
+  Older records without a working directory do not match latest;
   they can still be resumed by their printed IDs.
+  The former name last was renamed to latest; -c last is rejected with
+  an error naming the replacement. That error will be removed later;
+  do not rely on either behavior of last.
 
 state (first applicable entry wins):
   --state-dir PATH > $MOREOVER_STATE_DIR > $XDG_STATE_HOME/moreover
