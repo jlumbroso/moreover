@@ -401,6 +401,27 @@ Yep, Option A it is, Mint outdid themselves once more. And I think `moreover con
 - Defaults are compatibility surface: stderr stays default until an ADR
   says otherwise.
 
+### QST-RECENCY-WORD: Is `-c last` misnamed — and what is the recency word?
+
+- Status: routed to the naming authority, 2026-10-04, at Jérémie's commission
+- Why asking: Jérémie's ruling-in-part (2026-10-04): the feature is
+  "*very* good and *very* useful, but terribly misnamed." His proof is
+  observational — explanations of the feature keep reaching for OTHER
+  words ("my *latest* stream," "the *newest* saved cursor," "most
+  *recently used*"), never "last," because **"last" is about absolute
+  temporality while the feature is relative temporality** (a
+  superlative selection over this desk's recency, re-resolved per
+  call). "last" also carries the false reading *final* — hazardous
+  beside `cursor: null`, which really does mean final. Directionally
+  he names `-c latest` an improvement, which also disambiguates
+  visually (six letters, letter-only) from the 4-char-minimum
+  mixed-letter-digit id space. The word itself is the naming
+  authority's to strike; the window matters — the tool is released but
+  unannounced, so a clean rename is cheap today and a compatibility
+  story forever after.
+- Need: the struck word; and whether the old value gets a mercy alias
+  or a clean break.
+
 ## Action Items
 
 - [x] Answer the four QSTs - Owner: Jérémie — all answered by 2026-09-22 (ENV-OVERRIDE parked deferred at his request)
