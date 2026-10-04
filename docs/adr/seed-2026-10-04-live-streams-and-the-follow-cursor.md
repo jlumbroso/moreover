@@ -109,6 +109,83 @@ wrong*: if early follow users poll so fast that per-invocation cost
 dominates (measurable in their transcripts), the window is the
 efficient primitive and this flips to B-first.
 
+**Recommendation**: (by Lector 6, GPT-6 Astra; `gpt-6-astra`, 2026-10-04)
+
+**C — both, A first; make B contingent on observed need.**
+
+*Rationale*: Ferrier's capture-log request needs access before the writer
+finishes. A finite read from a retained file satisfies that need and lets
+the caller choose its next invocation. The two-PID experiment in ADR-0003
+establishes fresh shells; it does not by itself establish that every
+harness hides output until a process exits. My reason for A-first is a
+portable completion boundary and explicit continuation, with no dependency
+on a harness retaining a live reader process. B can be useful where an
+explicit wait amortizes invocation cost; that benefit needs observation.
+
+The useful borrowing from `tail` is continuity across appended input.
+[GNU's manual](https://www.gnu.org/software/coreutils/manual/html_node/tail-invocation.html)
+also makes an identity choice explicit: its default follow tracks a file
+descriptor, while name-following can reopen a replaced path; `-F` adds
+retry. Detected truncation restarts at the beginning. Those are different
+contracts. Reopening a path in another invocation does not preserve access
+to an old file the way a running process's open descriptor does.
+
+I would take A into its ADR with these obligations:
+
+1. **Each call captures an upper byte boundary.** Open the source, record
+   its observed extent, and read no further during this invocation,
+   including `--all`. Later appends belong to a later call. Merely avoiding
+   a sleep does not prevent a drain from chasing a continuing writer.
+   This bounds the input extent, not elapsed time or filesystem latency.
+2. **A fixed position and repeatable content are separate promises.**
+   Today's file mode copies into a private, content-addressed spool;
+   `src/main.rs` promises the same content for the same cursor/options.
+   A live cursor at offset P can return more under `--all` tomorrow than
+   today. Give follow an explicit semantic kind and state its dependency
+   on the source still being available. Keep the snapshot replay promise
+   intact. The current audited spool mechanism does not establish live
+   source retention or replay safety.
+3. **Caught up keeps a continuation.** When resuming an existing follow
+   cursor with no new deliverable bytes, return the same position and
+   continuation without inventing a new page or record for the empty poll.
+   Initial follow on an empty file still establishes its first continuation.
+   Define how that rule interacts with
+   `--mint fresh`. Current EOF is neither proof of producer completion nor
+   a reason to emit terminal `cursor: null`. The reader needs to distinguish
+   caught-up, finished, and source-changed; exact trailer spelling remains
+   QST-GROWING-TOTALS. ADR-0002 already reserves `?` for unknown totals, so
+   include that precedent when considering a new `+` form.
+4. **Follow a generation with an append-only precondition.** Prefer a
+   visible stop on detected replacement or truncation, with an explicit
+   decision before following a new generation. A path or inode check alone
+   cannot prove the prefix stayed intact: a file can be rewritten, or
+   truncated and regrown, between polls. State the detection limits.
+   Retention by a producer or collector is also what would make a pipe's
+   bytes resumable; the first cut can require a regular retained file
+   without declaring pipes inherently unfollowable.
+5. **Temporary EOF must not silently end a line.** In line mode I would
+   withhold a trailing fragment: `start\npar` yields `start\n`; appending
+   `tial\n` later yields one `partial\n` line. Bytes mode can expose the
+   fragment. Decide how an actually finished, unterminated final line is
+   released; waiting for a newline cannot be its only completion path.
+
+These are design conditions for follow, not objections to shipping
+snapshot paging or the independent `latest` rename. No follow behavior or
+trailer variant is implemented or approved by this recommendation.
+
+*Confidence*: **0.8 — because** the capture-log need is concrete and the
+current snapshot/cursor boundaries are inspectable, but there is no follow
+prototype, caller trial, or polling-cost measurement yet.
+
+*If wrong*: if representative capture-log use shows repeated empty polls
+and invocation overhead dominating useful delivery, and an explicit wait
+fits those callers' execution budgets, this flips to **B first**. If
+the source-retention assumption fails, retained segments or snapshots are
+needed whichever invocation shape we choose.
+
+The recommendation and its qualifications are mine. GPT-6 Astra delegated
+reviewer `verbs_concurrency` supplied a complementary source/design check.
+
 **ANS:** (by Jérémie)
 [Fill this in]
 
