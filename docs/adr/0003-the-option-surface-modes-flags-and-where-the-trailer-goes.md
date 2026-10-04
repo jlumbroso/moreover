@@ -499,6 +499,95 @@ wrong temporality. Swept same-hour: code, help, contract, README
 
 ---
 
+### Latest pre-release review — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-10-04
+
+**Recommendation: a narrow 0.5.0 hold for the migration signpost ordering
+and release-copy corrections below.** The naming decision stands. Reviewed
+runtime `8c6ac9ef2efe21585c3bee4f54eeba8e59e85cf6`; the working runtime and
+tests match it. All **55 tests pass** (9 library unit, 2 binary unit,
+29 CLI, 15 sketch), including the README/binary-surface synchronization
+gate and the existing deprecated-word regression.
+
+The `latest` resolver retains the preceding storage algorithm and format.
+The delegated [pinned CLI probe](../../scripts/ephemeral/2026-10-04-latest-routing-audit.py),
+committed at `7c3e687`, passed controls for `latest`/`LATEST`/`Latest`,
+`-c`/`--cursor`, uppercase explicit IDs from another directory, and refusal
+of recovery in that other directory after an exhaustion call creates no
+recovery record. No cursor/data-loss or recovery regression was found in
+these checks. Historical ADR references to the shipped name `last` remain
+historical; this review does not rewrite the naming authority's answer.
+
+**L1 — reject the old word before opening state.** `run` opens the store
+at `src/main.rs:779–781`, then recognizes `last` at `792–795`. Consequently:
+
+| Otherwise ordinary resume invocation | Observed result at `8c6ac9e` |
+|---|---|
+| `-c last`, `LAST`, or `Last`, with a previously absent state directory | Exit 2 and the pointer, but creates `cursors/` and `spools/` first |
+| `--cursor LAST` with a regular file occupying the state path | Exit 1, `cannot open state dir`; no rename pointer |
+
+The probe preserves the sentinel file and observes no stdout in either
+case. This is a low-impact migration-routing defect; no saved content was
+lost. It nevertheless makes the accepted signpost depend on usable state
+even though rejecting that word needs no state. Move the rejection ahead
+of `FsStore::open`. Add regressions requiring exit 2, the replacement
+pointer, empty stdout, and no newly created state for an absent path;
+require the same pointer and unchanged sentinel for an unusable path.
+The current regression seeds a valid store, so it cannot catch this order.
+
+**L2 — keep the new release notes within the verified promises.** The
+later `CHANGELOG.md` addition at `beb930c` is also part of the public
+release surface. Make these local replacements before the next release
+notes are published:
+
+- Lines 26–30: replace "returns the same id forever" with "reuses the same
+  continuation ID while its cursor mapping and saved input remain intact."
+  The contract already qualifies replay by retained state; a deterministic
+  derivation does not restore discarded state or historical allocations.
+- Lines 31–33: describe **recovery hardening**, not first introduction.
+  `-c last` is present in the inspected `v0.3.0` tag and in this ADR's
+  Iteration 7; the changelog itself lists it under 0.3.0 at line 59.
+  Suggested text: "Per-directory recovery was hardened for stable cursor
+  reuse: another directory's reuse no longer redirects this directory's
+  selection. Invocations sharing one directory still share its recovery
+  selection." This also removes the overbroad claim that concurrent
+  readers do not collide.
+- Lines 34–38 and 51–53: use "GC collects by **last recorded use** across
+  the selected state directory. Mint, reuse, and resume attempt to refresh
+  that time; a failed refresh can leave a recently used cursor collectible."
+  Preserve the unconditional `gc 0` statement and mapping-protection
+  description. This retains the accepted R2 limitation in the release
+  notes as well as the binary contract.
+
+**Inherited precision follow-up, outside this rename hold.** "Most
+recently used" is broader than the normal per-directory recovery record:
+that record is updated when `put_cursor` mints or reissues a continuation.
+Exhaustion does not update it. When the recovery record is absent, however,
+the legacy resolver scans matching stored directories by record mtime;
+`note_use` can change that fallback's selection even at exhaustion. Both
+mechanisms predate this rename; this distinction is from source inspection,
+not an additional executed legacy-state probe. A bounded replacement is:
+
+> `-c latest` resolves this directory's saved recovery selection. Paging
+> updates its recovery record when it mints or reissues a continuation
+> cursor. A call returning `cursor: null` does not update that record.
+> With no recovery record, the fallback scans readable cursor records
+> whose stored directory matches and selects the newest modification time;
+> a successful age refresh can change that fallback even at exhaustion.
+
+Keep the existing damage, other-stream, printed-ID, and stop-at-null
+guidance. The short help phrase can be "recover this directory's saved
+continuation selection." Align the contract's "removed later" with the
+accepted one-minor-version signpost window when preparing the release.
+
+Lector 6 ran the full gate, inspected the unchanged resolver and the
+`v0.3.0` tag, and owns this verdict. GPT-6 Astra delegated reviewers
+contributed the pinned CLI probe (`contract_audit`, who ran it) and public
+surface review (`post_claims`). This pass changes no product code. L1 and
+the three L2 copy corrections are the bounded conditions for clearance;
+the live-streams design consultation is independent of the 0.5.0 train.
+
+---
+
 ## Links
 
 - Related ADRs: ADR-0002 (units, trailer grammar, state — the surfaces these options steer)
