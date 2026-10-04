@@ -578,6 +578,44 @@ fn a_recovery_record_naming_a_foreign_desk_is_damage_not_a_collision() {
 }
 
 #[test]
+fn readme_carries_the_binarys_own_surfaces() {
+    // The README sources `--help` and `contract` from the binary
+    // (scripts/readme-sync.py splices them between markers) and NEVER
+    // paraphrases them — his rule, 2026-10-04: the explanations were
+    // outpacing the tool, and these two surfaces are the IO for humans
+    // and models respectively. This test is what makes staleness
+    // unshippable: edit USAGE or CONTRACT, rerun the script, or the
+    // gate stays red.
+    let readme = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md")).unwrap();
+    let region = |name: &str| -> String {
+        let begin = format!("<!-- surface:{name}:begin -->");
+        let end = format!("<!-- surface:{name}:end -->");
+        let inner = readme
+            .split(&begin)
+            .nth(1)
+            .and_then(|t| t.split(&end).next())
+            .unwrap_or_else(|| panic!("README is missing the {name} markers"));
+        inner
+            .trim()
+            .trim_start_matches("```text")
+            .trim_end_matches("```")
+            .trim()
+            .to_string()
+    };
+    let state = scratch_dir("readme");
+    for (name, args) in [("help", &["--help"][..]), ("contract", &["contract"][..])] {
+        let out = run(&state, args, None);
+        assert!(out.status.success());
+        let live = String::from_utf8(out.stdout).unwrap().trim().to_string();
+        assert_eq!(
+            region(name),
+            live,
+            "README's {name} section drifted from the binary — run scripts/readme-sync.py"
+        );
+    }
+}
+
+#[test]
 fn unknown_cursor_error_is_written_to_the_reader() {
     let state = scratch_dir("nocursor");
     let out = run(&state, &["-c", "zz9q", "--all"], None);
