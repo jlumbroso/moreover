@@ -951,6 +951,73 @@ contract or an observable age-update failure policy for R2.
 
 ---
 
+### Verbs release clearance — Lector 6 (GPT-6 Astra; gpt-6-astra), 2026-10-04 UTC
+
+**Verdict: clear Lector's ADR-0005 verbs release hold for `3cbce1c`.**
+Reviewed runtime repair `3cbce1c5e7749141ee405639f068f1764c7bb115` and
+Iteration 7 at `0bdd686`. The working runtime source and tests match that
+repair. R1, R2, and R3 from the preceding re-check are closed on the
+evidence and policy boundaries below.
+
+**R1 — read-only exhaustion resume restored.** An existing `.txn-lock`
+is opened read-only and genuinely locked shared; this preserves
+coordination without demanding write access. Only `NotFound` reaches the
+creation branch. If creation fails for permission or read-only-filesystem
+reasons, exhaustion can proceed without a guard; maintenance's identical
+write/create open propagates the failure before inventory. Other initial
+open errors and actual locking errors still propagate.
+
+The new CLI regression passes for both an existing read-only lock and an
+absent legacy lock, returning the expected remaining bytes. It also checks
+that GC refuses the absent-lock store while its root remains read-only.
+The earlier threaded paging/GC regression still passes; its setup creates
+the lock before the contested page, so the shared side now uses the new
+read-only handle. This closure covers the demonstrated same-user,
+unchanged-permissions cases; it does not establish coordination against
+external permission changes, lock replacement, or differently privileged
+users. Publishing a new continuation from read-only state is not promised.
+
+**R2 — best-effort age policy accurately stated.** Help and contract now
+use last recorded use, attempted refresh, and the consequence of failure:
+a recently used cursor can still be collected. The contract includes the
+previous review's exact replacement. The new CLI regression successfully
+resumes the aged `0444` record inside a writable store, then lets GC collect
+it. This closes the wording/policy condition by stating the limitation;
+it does not eliminate that limitation or alter the seven-day default.
+
+**R3 — initial activity separated from the drain.** The worker reports
+its first chunk or EOF through one channel, then drains the remainder
+through another without a deadline. The new real-socket regression passes
+with first data inside a 100ms window and further data/EOF after 400ms,
+returning both lines exactly. The silence and immediate-EOF checks also
+pass. This is helper/socket evidence, not a new live harness or character-
+device reproduction.
+
+The delegated [first-read confirmation probe](../../scripts/ephemeral/2026-10-03-stdin-first-read-audit.py),
+retained at `8d01563`, passed three additional helper checks against the
+unchanged pinned implementation: exact joining of 200,003 bytes; hard
+errors before/after first data returning exit 1; and injected initial
+`Interrupted` behavior. That last case is a **nonblocking robustness
+follow-up**: the initial raw `read` returns exit 1 for `Interrupted`, while
+ordinary `read_to_end` retries the same scripted reader and completes.
+Retrying an interrupted initial read within the same deadline would
+preserve that behavior. No live stdin/signal exposure was demonstrated;
+this does not reopen the repaired delayed-EOF finding or extend the hold.
+
+`cargo test` exits 0 with **53 passing tests**: 9 library unit, 2 binary
+unit, 27 CLI, and 15 sketch. Lector 6 ran the full gate and reviewed the
+repair. GPT-6 Astra delegated reviewers independently checked locking
+(`verbs_concurrency`), age policy (`contract_audit`), and stdin handling
+(`post_claims`, who authored and ran the additional helper probe). The
+earlier subordinate editorial follow-ups remain nonblocking. No product
+code or other participant's attributed decision was changed by this pass.
+
+No release condition remains from this audit for the reviewed revision.
+This is audit clearance; the release coordinator still owns the remaining
+release checks and publication.
+
+---
+
 ## Links
 
 - Related: the dogfooding seed (QST-MINT-POLICY); ADR-0003 (desk verbs, `-c last`, desk scoping); Lector 6's seed thread (equality)
