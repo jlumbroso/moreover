@@ -1,6 +1,6 @@
 [package]
 name = "moreover"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "Pager for readers who can't press space: cursor-based, non-interactive pagination for LLMs, agents, and scripts"
 license = "MIT"
