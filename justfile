@@ -276,7 +276,7 @@ pulse stale_threshold='6':
 [group('crew')]
 [doc("Launch (or attach to) a seat's tmux session. `just launch --next-inactive` spins up the next seat with no running session")]
 launch seat='' *flags='':
-    @python3 scripts/last-message.py --launch {{seat}} {{flags}}
+    @pneumatic launch {{seat}} {{flags}}
 
 # Backported from ADRs4AI HQ meta-repo, 2026-07-10 (Herald 5) — see its
 # docs/adr/0008-rapid-relaunch-via-vscode-terminals-manager.md for the full
