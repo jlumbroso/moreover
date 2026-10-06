@@ -36,10 +36,9 @@ Resumption:
   -c, --cursor ID       resume the stream that ID names
                         (a cursor is only valid if moreover printed it —
                         never invent or extrapolate one)
-  -c latest             select the most recently used saved cursor for
-                        this working directory in the selected state dir
-                        (renamed from last, which now errors with a
-                        pointer here)
+  -c latest             recover this directory's saved continuation
+                        selection (renamed from last, which now errors
+                        with a pointer here)
   --mint stable|fresh   cursor-id policy, asserted (default: stable —
                         the same resume repeated yields the same next
                         cursor; fresh mints a new id every time)
@@ -231,21 +230,24 @@ cursors:
   No mode creates a successor when the trailer says cursor: null.
 
 latest (recovery):
-  -c latest selects this working directory's most recently used cursor,
-  from a per-directory recovery record in the state directory. Records
-  from before this mechanism are matched by their stored directory
-  instead. No matching record is an error; a damaged recovery record is
-  reported as an error rather than silently selecting an older stream.
-  latest is resolved again on each call. Other invocations in the same
-  working directory and state directory can change its selection,
-  including to another stream. Use a printed ID for a fixed position.
-  A call creating no cursor leaves latest unchanged, even at exhaustion.
-  Stop at cursor: null; another -c latest can repeat already-read content.
-  Older records without a working directory do not match latest;
-  they can still be resumed by their printed IDs.
+  -c latest resolves this directory's saved recovery selection. Paging
+  updates its recovery record when it mints or reissues a continuation
+  cursor. A call returning cursor: null does not update that record.
+  With no recovery record, the fallback scans readable cursor records
+  whose stored directory matches and selects the newest modification
+  time; a successful age refresh can change that fallback even at
+  exhaustion. No matching record is an error; a damaged recovery record
+  is reported as an error rather than silently selecting an older
+  stream. latest is resolved again on each call. Other invocations in
+  the same working directory and state directory can change its
+  selection, including to another stream. Use a printed ID for a fixed
+  position. Stop at cursor: null; another -c latest can repeat
+  already-read content. Older records without a working directory do
+  not match latest; they can still be resumed by their printed IDs.
   The former name last was renamed to latest; -c last is rejected with
-  an error naming the replacement. That error will be removed later;
-  do not rely on either behavior of last.
+  an error naming the replacement, without touching or creating any
+  state. That rejection lasts one minor version, then the word is
+  simply unknown; do not rely on either behavior of last.
 
 state (first applicable entry wins):
   --state-dir PATH > $MOREOVER_STATE_DIR > $XDG_STATE_HOME/moreover
@@ -776,6 +778,17 @@ fn run() -> Result<(), (u8, String)> {
         },
     };
 
+    // The migration signpost fires BEFORE any state is touched (latest
+    // review, L1): rejecting a retired word needs no store, so it must
+    // not depend on a usable state path — and must never be the reason
+    // a state directory springs into existence.
+    if let Some(id) = &args.cursor {
+        if id.eq_ignore_ascii_case("last") {
+            return Err((2, "'last' was renamed: use 'latest' (the desk's most \
+                            recently used cursor)".to_string()));
+        }
+    }
+
     let root = args.state_dir.clone().unwrap_or_else(FsStore::default_root);
     let store = FsStore::open(root.clone())
         .map_err(|e| (1, format!("cannot open state dir {}: {e}", root.display())))?;
@@ -786,13 +799,8 @@ fn run() -> Result<(), (u8, String)> {
     // would be. Struck from `last` by the naming authority (ADR-0003
     // QST-RECENCY-WORD): "last" read as absolute/final temporality while
     // the feature is a relative selection re-resolved per call. The old
-    // word gets a SIGNPOST, not an alias — recognized, rejected,
-    // pointing — for one minor version, then nothing.
+    // word gets a SIGNPOST, not an alias — rejected pre-store, above.
     let cursor = match &args.cursor {
-        Some(id) if id.eq_ignore_ascii_case("last") => {
-            return Err((2, "'last' was renamed: use 'latest' (the desk's most \
-                            recently used cursor)".to_string()));
-        }
         Some(id) if id.eq_ignore_ascii_case("latest") => {
             let desk = std::env::current_dir()
                 .map(|p| p.display().to_string())

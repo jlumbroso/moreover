@@ -25,17 +25,23 @@ The audited lifecycle release: seven iterations of independent audit
 ### Added
 - **Stable cursor ids** (`--mint stable`, the default): the next-cursor
   id is derived from (saved input, byte position, page number), so
-  repeating the same resume returns the same id forever, and a million
-  identical calls cost one record. `--mint fresh` asserts the old
-  random-id behavior. Flags assert destinations, never deltas.
-- **Per-directory recovery** (`-c last`; renamed `latest` in the next
-  release): recover your newest cursor when the printed id is lost —
-  scoped to the working directory, so concurrent readers don't collide.
+  repeating the same resume reuses the same continuation ID while its
+  cursor mapping and saved input remain intact, and a million identical
+  calls cost one record. `--mint fresh` asserts the old random-id
+  behavior. Flags assert destinations, never deltas.
+- **Per-directory recovery hardened** for stable cursor reuse
+  (`-c last` itself shipped in 0.3.0; renamed `latest` in the next
+  release): another directory's reuse no longer redirects this
+  directory's selection. Invocations sharing one directory still share
+  its recovery selection.
 - **The desk verbs**: `ls` (list this directory's parked cursors;
   `--everywhere` for the whole store), `drop CURSOR` (declare a stream
-  finished), `gc [DAYS]` (sweep cursors unused for DAYS days; `gc 0`
-  sweeps all). Removal preserves every surviving stable id's
-  reproducibility via placeholder tombstones.
+  finished), `gc [DAYS]` — GC collects by **last recorded use** across
+  the selected state directory; mint, reuse, and resume attempt to
+  refresh that time, and a failed refresh can leave a recently used
+  cursor collectible; `gc 0` sweeps all, unconditionally. Removal
+  preserves every surviving stable id's reproducibility via
+  placeholder tombstones.
 - **Agent-harness null-call guard**: a stdin that is an open device
   delivering neither data nor EOF within 2 seconds (the shape many
   agent harnesses give) now prints a guide and exits 2 instead of
@@ -48,9 +54,9 @@ The audited lifecycle release: seven iterations of independent audit
 - `gc`/`drop` wait for any in-flight paging in the same store (and
   vice versa), closing a window where a just-saved stream's input
   could be freed before its cursor existed.
-- `gc`'s age is inactivity (mint, reuse, and resume refresh it), its
-  wording is honest about best-effort refresh, and `gc 0` removes
-  future-dated records too.
+- GC collects by last recorded use; mint, reuse, and resume attempt to
+  refresh that time, a failed refresh can leave a recently used cursor
+  collectible, and `gc 0` removes future-dated records too.
 - Resuming to exhaustion works again on read-only state directories.
 
 ## 0.3.0 — 2026-09-26

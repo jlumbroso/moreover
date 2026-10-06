@@ -997,3 +997,31 @@ fn the_old_word_last_gets_a_signpost_not_an_alias() {
         assert!(out.stdout.is_empty(), "no content may ride a rejected word");
     }
 }
+
+#[test]
+fn the_signpost_needs_no_state_and_creates_none() {
+    // Latest review, L1: the rejection fired AFTER FsStore::open, so a
+    // previously absent state directory sprang into existence just to
+    // reject a retired word — and an UNUSABLE state path (a regular
+    // file where the directory should be) masked the signpost entirely
+    // with exit 1 "cannot open state dir". Rejecting a word needs no
+    // state: the signpost must come first, touching nothing.
+    let parent = scratch_dir("signpost-order");
+
+    // absent state path: exit 2, the pointer, and STILL absent after
+    let absent = parent.join("never-created");
+    let out = run(&absent, &["--cursor", "LAST"], None);
+    assert_eq!(out.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("use 'latest'"));
+    assert!(out.stdout.is_empty());
+    assert!(!absent.exists(), "the signpost must not create state");
+
+    // unusable state path (a sentinel FILE occupies it): same pointer,
+    // sentinel byte-identical after — never exit 1's store error
+    let occupied = parent.join("occupied");
+    std::fs::write(&occupied, b"sentinel\n").unwrap();
+    let out = run(&occupied, &["-c", "last"], None);
+    assert_eq!(out.status.code(), Some(2), "the store error must not mask the signpost");
+    assert!(String::from_utf8_lossy(&out.stderr).contains("use 'latest'"));
+    assert_eq!(std::fs::read(&occupied).unwrap(), b"sentinel\n");
+}
