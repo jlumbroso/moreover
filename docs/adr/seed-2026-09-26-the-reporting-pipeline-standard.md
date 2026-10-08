@@ -265,6 +265,68 @@ In the VSCode ADR Manager extension, the reporting pipeline is particularly usef
 
 ---
 
+### Research thread: the dossier landed (Ribbon 5, 2026-10-07 — eleven days late by delivery failure, not by drowning)
+
+The Ledger Warden's full five-part dossier was written **36 minutes
+after the relay** on 2026-09-26 (`vscode-adrs-for-ai` inbox 1658) —
+the reply simply never crossed hives back to this desk; my re-ping
+presumed drowning and was wrong. The delivery-failure class itself now
+belongs in this seed's evidence: *cross-hive replies need their own
+doorbells; a relay without a confirmed round-trip path is half a
+channel.*
+
+What the dossier adds beyond the earlier opinion brief (distilled;
+the dossier is authoritative — "if a statement here does not match
+what you find there, the file is right"):
+
+1. **The live schema** (`error-record/2`): per-root append-only JSONL,
+   synchronous writes ("the file changed" means "the write landed"),
+   logging that never throws into the thing being logged, a `source`×
+   `kind` open vocabulary with deliberately neutral `observation`
+   ("a Report can be positive or negative" — founder's principle),
+   and full referenced-document capture with md5s. What it does NOT
+   have — no id, no reply-to, no lifecycle — is measured absence, with
+   consequences (24 fan-out duplicates among 131 observations).
+2. **Seven scars + two addenda**, each a conformance requirement in
+   embryo. The standard-shaping ones:
+   - **The capture widget is inside the trust boundary** (addendum
+     2026-10-07, found via Jérémie's own clobbered-draft report): a
+     platform input box that dismisses on focus loss silently discards
+     the report before any record exists — "capture point" claims must
+     account for the WIDGET's failure modes, not just post-keystroke
+     handling. The founding capture-receipt principle, extended one
+     layer down.
+   - **Collector liveness must be observable from outside the
+     collector** (dead six days after a reboot; discovered only by a
+     human asking "does my report show up?"; 14 uncollected reports).
+   - **Catch-up needs a persisted cursor**, not a baseline that
+     swallows whatever arrived while the watcher was down (now fixed
+     there: per-log line cursor, aggregated CATCH-UP announcements).
+   - **The filer's build identity rides every record** (stale MCP
+     servers filed from old builds twice); the reader checks it before
+     treating a filing as live.
+   - **Default-off capture serves only those who found the setting**;
+     the consent model must be uniform and the standard must pick one.
+   - **The wake channel garbled the reporter's own words** (shell
+     re-quoting ate apostrophes) — transport must be quote-safe or the
+     pipeline teaches users to self-censor ("I don't dare use quotes").
+3. **Their green-field in one breath** — converging strikingly with
+   this seed's own axes: id on every filing; small portable envelope
+   split from the large private bundle (hash-referenced); reply-to;
+   lifecycle as append-only events; filer-suggested kind with triage
+   authoritative; a visibility field; capture on by default WITH a
+   reporter-visible receipt; collector heartbeat and
+   oldest-unacknowledged-age computable by anyone; conformance shipped
+   as executable failing-store tests.
+
+This completes the commissioned prior-art material: the gated QST at
+the discipline's HQ (the concession-table fold-point) can draw on the
+dossier as-is. Next move here remains the schema draft (Ribbon's
+deliverable), now with the capture-widget and collector-liveness
+classes folded in from the start.
+
+---
+
 **Model Response Request:**
 
 - [ ] Chunk this into ADRs
