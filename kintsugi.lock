@@ -2,16 +2,15 @@
 # What this repo HAS, per artifact (base version + exact canonical blob).
 kintsugi_schema: 1
 canonical_version: 3.11.6
-synced: '2026-10-11T17:57:21Z'
+synced: '2026-10-11T17:57:26Z'
 artifacts:
   .claude/agent.env:
     base_version: 3.11.6
     base_blob: c20a2608bb5fb10c4a26975071fcd4df92fbf299
     state_at_adopt: unmodified+current
   .claude/skills/adr-authoring/SKILL.md:
-    base_version: 3.11.5
-    base_blob: 824657f40f96be3621cdcb9a01406740b0894f79
-    state_at_adopt: unmodified+behind
+    base_version: 3.11.6
+    base_blob: d7becc1a77ac7f6a4531a4bd1467a8a7f9d6a9d1
   .claude/skills/adr-authoring/references/depth.md:
     base_version: 3.11.6
     base_blob: 479e7aeaa4fac1c6fed7d2d57077e8c1ef58bca4
@@ -35,7 +34,8 @@ artifacts:
   CLAUDE.md:
     state_at_adopt: unknown-base
   QUICK-START.md:
-    state_at_adopt: missing-local
+    base_version: 3.11.6
+    base_blob: 0996d551ca5ac3c77e71463dc01f22e38560a547
   README.md:
     state_at_adopt: unknown-base
   docs/METHODOLOGY.md:
