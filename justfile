@@ -484,3 +484,16 @@ adr TITLE:
     mkdir -p docs/adr
     cp docs/adr/templates/adr.md "$FILE"
     echo "$FILE"
+# ─── estate mail at the door (teaching-debt retirement, fleet fill 2026-10-11:
+# a seat that had SENT mail needed transcript archaeology to rediscover the
+# verb — rung 4, 'used ≠ retained'. Curriculum: ADRs4AI HQ
+# docs/inbox/2026-10-06-2254-tender-to-shipwright-*.md) ──────────────────────
+[group('crew')]
+[doc("Estate mail: just mail status|list|fetch|read <id>|send|forward — fetch renders new mail addressed to YOU inside the preflight fence")]
+mail *args:
+    @pneumatic mail {{args}}
+
+[group('crew')]
+[doc("One wait for everything: blocks until a brief addressed to you/your groups OR estate mail that renders for you (timeout = zero information)")]
+await *args:
+    @pneumatic await {{args}}
