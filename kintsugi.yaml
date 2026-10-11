@@ -137,11 +137,34 @@ features:                   # labels only in v0
 journal:
   path: TEMPLATE-UPDATES.md
   enabled: true
-
-overrides: {}
-# PLACEHOLDER — delete when adapting: an override example, for repos that
-# deliberately divorce an artifact (legible absence over silent divergence):
-#   overrides:
-#     README.md:
-#       skip: true
-#       reason: "this repo's front door is its own product, not the template's"
+overrides:
+  CLAUDE.md:
+    skip: true
+    reason: Per-repo by design (CLAUDE.md/.gitignore); justfile's local truth is today's pneumatic migration
+      + Ribbon's own d528fdf launch fix; README/CHANGELOG are moreover's real product content, verified
+      by reading. (Tender 5, founder fleet commission, 2026-10-11)
+    decided: '2026-10-11T17:57:45Z'
+  justfile:
+    skip: true
+    reason: Per-repo by design (CLAUDE.md/.gitignore); justfile's local truth is today's pneumatic migration
+      + Ribbon's own d528fdf launch fix; README/CHANGELOG are moreover's real product content, verified
+      by reading. (Tender 5, founder fleet commission, 2026-10-11)
+    decided: '2026-10-11T17:57:45Z'
+  .gitignore:
+    skip: true
+    reason: Per-repo by design (CLAUDE.md/.gitignore); justfile's local truth is today's pneumatic migration
+      + Ribbon's own d528fdf launch fix; README/CHANGELOG are moreover's real product content, verified
+      by reading. (Tender 5, founder fleet commission, 2026-10-11)
+    decided: '2026-10-11T17:57:45Z'
+  README.md:
+    skip: true
+    reason: Per-repo by design (CLAUDE.md/.gitignore); justfile's local truth is today's pneumatic migration
+      + Ribbon's own d528fdf launch fix; README/CHANGELOG are moreover's real product content, verified
+      by reading. (Tender 5, founder fleet commission, 2026-10-11)
+    decided: '2026-10-11T17:57:45Z'
+  CHANGELOG.md:
+    skip: true
+    reason: Per-repo by design (CLAUDE.md/.gitignore); justfile's local truth is today's pneumatic migration
+      + Ribbon's own d528fdf launch fix; README/CHANGELOG are moreover's real product content, verified
+      by reading. (Tender 5, founder fleet commission, 2026-10-11)
+    decided: '2026-10-11T17:57:45Z'
