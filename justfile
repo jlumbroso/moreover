@@ -151,20 +151,20 @@ inbox-archive filename:
 [group('inbox')]
 [doc("Read last K messages from agent's session: just last <alias> [k]")]
 last alias k='1':
-    @python3 scripts/last-message.py {{alias}} -k {{k}}
+    @pneumatic last {{alias}} -k {{k}}
 
 # Same as `last`, but no body truncation (full message contents).
 [group('inbox')]
 [doc("Read last K messages from agent (full, no truncation): just last-full <alias> [k]")]
 last-full alias k='1':
-    @python3 scripts/last-message.py {{alias}} -k {{k}} --full
+    @pneumatic last {{alias}} -k {{k}} --full
 
 # List configured agent → session-UUID aliases. Edit
 # docs/inbox/agent-sessions.json to add or update.
 [group('inbox')]
 [doc("List configured agent session aliases (docs/inbox/agent-sessions.json)")]
 aliases:
-    @python3 scripts/last-message.py --list
+    @pneumatic aliases
 
 # Print a seat's read_order — its onboarding packet as data, not prose.
 # Invented by Notary Opus 4.7 (crossfoot, 2026-07-09); backported by
@@ -173,22 +173,23 @@ aliases:
 [group('inbox')]
 [doc("Print a seat's onboarding read_order, with found/missing markers: just onboard <alias>")]
 onboard alias:
-    @python3 scripts/last-message.py {{alias}} --onboard
+    @pneumatic onboard {{alias}}
 
 # List recent session JSONLs in the storage dir. Use this to find UUIDs for
 # new agents and populate docs/inbox/agent-sessions.json.
 [group('inbox')]
 [doc("Discover recent session JSONLs in this project (find UUIDs for new aliases)")]
 discover-sessions:
-    @python3 scripts/last-message.py --discover
+    @pneumatic discover
 
 # ─── crew — named seats, groups, health, wait discipline ─────────────────────
 #
 # The crew layer treats each participant as a persistent, named, colored,
-# model-attributed SEAT (docs/inbox/agent-sessions.json). The seat outlives
-# the occupant: when a model is deprecated, rerouted, or suspended, the
-# seat's name and mission persist; the registry records occupant reality
-# (`model`, `model_note`) separately from seat identity (`display_name`).
+# model-attributed SEAT (docs/inbox/agent-sessions.json). Seats BELONG to
+# models (ADR-0025, 2026-08-05): a seat is the name a model gives to its own
+# continuity across sessions and compactions — never reassigned to a
+# different mind. The registry records occupant reality (`model`,
+# `model_note`) separately from seat identity (`display_name`).
 # See docs/inbox/ONBOARDING.md for the crew model.
 #
 # Backported per meta-repo ADR-0003 from operational crews (caring-feedback → ADRs4AI
@@ -259,7 +260,7 @@ crew:
 [group('crew')]
 [doc("Health check all seats: detect stalls, errors, blocked states")]
 pulse stale_threshold='6':
-    @python3 scripts/last-message.py --pulse --stale-threshold {{stale_threshold}}
+    @pneumatic pulse --stale-threshold {{stale_threshold}}
 
 # ─── wake infrastructure (ported from caring-feedback, ADR-0050 lineage) ─────
 #
@@ -285,7 +286,7 @@ launch seat='' *flags='':
 [group('crew')]
 [doc("Regenerate .vscode/terminals.json — default: top-up (only seats not already open); --all: every seat (recovery, duplicates by design)")]
 refresh-terminals *args:
-    @python3 scripts/refresh-terminals.py {{args}}
+    @pneumatic-vscode-terminals {{args}}
 
 [group('crew')]
 [doc("Who touched a file, when, per seat (from session tool records): just blame <pattern> [--reads] [-n 50]")]
@@ -295,17 +296,25 @@ blame pattern *flags:
 [group('crew')]
 [doc("List all seat-* tmux sessions with state (attached/detached)")]
 seats:
-    @python3 scripts/last-message.py --seats
+    @pneumatic seats
 
 [group('crew')]
 [doc("Update terminal titles for all running seat sessions")]
 update-seat-titles:
-    @python3 scripts/last-message.py --update-titles
+    @pneumatic update-titles
 
 [group('crew')]
 [doc("Wake a seat by sending a message to its tmux session (--force to override guards)")]
 wake seat message *flags='':
-    @python3 scripts/last-message.py --wake {{seat}} --message "{{message}}" {{flags}}
+    @pneumatic wake {{seat}} --message "{{message}}" {{flags}}
+
+# `pulse` surfaces 🟪 PERM-STALL; without this recipe there is nothing to
+# resolve one with (FLEET-TOOLING-HANDBOOK step 4: always add rescue at
+# migration; added by the fleet-tooling transition, 2026-10-11).
+[group('crew')]
+[doc("Rescue a perm-stalled seat: diagnose/resolve its pending permission dialog (--diagnose never sends keystrokes)")]
+rescue *args:
+    @pneumatic rescue {{args}}
 
 # Block until a new brief addressed to <recipient> lands in docs/inbox/.
 # v4 semantics (caring-feedback dogfooding): wake condition = mtime > start AND

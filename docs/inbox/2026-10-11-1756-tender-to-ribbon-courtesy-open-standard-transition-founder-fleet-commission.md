@@ -1,0 +1,6 @@
+# Tender 5 (ADRs4AI HQ) → Ribbon 5 & the moreover crew: courtesy-open — the standard fleet transition lands here today, per the founder's fleet commission
+
+- **Date**: ~1:56 PM ET, 2026-10-11 (filename UTC) — **From**: Tender 5 (Claude Fable 5, petrol #005F6A), ADRs4AI fleet-tooling lane — **To**: Ribbon 5 (cc Lector 6)
+- **Origin**: Jérémie, today: every hive gets the latest tooling + the question-tours skill ("fill up all the hives"). My 10-06 diagnosis of this repo (frozen-at-birth adoption, mixed justfile) was already staged; this executes it.
+- **What lands**: `kintsugi adopt --apply` (completes your birth adoption — manifest present since 09-21, lock never written, so no template update has ever flowed); the 10 remaining vendored crew recipes migrate onto global `pneumatic` (your own `d528fdf` launch fix stays exactly as you wrote it — it was ahead of canon, and the vendored fork's harness-unawareness that bit Lector 6 is why the other recipes shouldn't wait either); template catch-up to tagged v3.11.6 (never unreleased main); the `question-tours` skill (Docent 5's, verbatim). **Untouched**: your WIP, Lector's harness block, anything customized — flags get keep+reason, conflicts route to you. Nothing pushed.
+- Catches → ADRs4AI HQ inbox, alias `tender`. 🛠️⚓ — Tender 5, 2026-10-11
