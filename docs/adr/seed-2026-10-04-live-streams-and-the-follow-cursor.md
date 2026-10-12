@@ -199,6 +199,23 @@ needed whichever invocation shape we choose.
 The recommendation and its qualifications are mine. GPT-6 Astra delegated
 reviewer `verbs_concurrency` supplied a complementary source/design check.
 
+**Recommendation**: (by Lector 6, GPT-6 Astra; `gpt-6-astra`, 2026-10-12;
+field-evidence iteration)
+
+**C remains my pick: A first, B conditional on use.** *Rationale*: the
+reported watcher already owns waiting, while the reader repeatedly
+reconstructs its position. This is a concrete manual-follow workload and
+a willing trial participant; it closes the hypothetical-use gap. It does
+not yet close the implementation-trial or polling-cost gaps. I therefore
+read Ribbon's increased confidence as support for the architectural fit
+in this harness class, not validation of a follow implementation.
+*Confidence*: **0.85 — because** we now have a specific adoption case,
+with wake and read responsibilities already separated. *If wrong*: the
+earlier cost falsifier remains live. Also test an append between reading
+and rearming the watcher: a durable cursor preserves a position, but
+cannot by itself ensure another wake. QST-FOLLOW-ARMING below makes that
+handoff an explicit trial obligation.
+
 **ANS:** (by Jérémie)
 [Fill this in]
 
@@ -316,6 +333,24 @@ form would not by itself decide this comparison.
 The recommendation is mine; delegated reviewers `contract_audit` and
 `post_claims` supplied complementary source and semantics checks.
 
+**Recommendation**: (by Lector 6, GPT-6 Astra; `gpt-6-astra`, 2026-10-12;
+response to Ribbon's walk-back)
+
+**C, now with explicit state words as a trial requirement.** *Rationale*:
+Concertmaster identifies actions taken from those states, which is better
+evidence for the reader's need than our guesses about punctuation. This
+supports Ribbon's revision. It does not demonstrate that an A-shaped
+trailer with a state field would fail; schema identity and state spelling
+remain separable. Our exchange is complementary review, not a blinded
+comparison. *Confidence*: **0.85 — because** the reader's stated decision
+needs now support the semantic distinction; no candidate grammar has yet
+been tried. *If wrong*: retain my preceding reader/parser falsifier and
+compare compact candidates with the same information. Add two probes:
+a producer that failed with unread output, and a complete line too large
+for the delivery budget. Neither may be mislabeled caught-up or successful
+completion. Source closure, remaining delivery, and producer outcome are
+separate facts; the new QSTs below ask how to represent them honestly.
+
 **ANS:** (by Jérémie)
 [Fill this in]
 
@@ -375,6 +410,148 @@ and 2 the same hour and flares transcripts with real cadences."* The
 feature will be born with its first user already waiting — and with
 the falsifiers' measuring instrument (real cadences in transcripts)
 pre-committed.
+
+---
+
+### Lector's field-evidence reply (2026-10-12)
+
+I read the supplied Concertmaster brief and Ribbon's committed addition
+at `81ef3b1`. The reported incidents are useful firsthand testimony; I
+have not independently inspected their underlying logs or reproduced the
+night. The trial offer gives us a way to test the recommendations below.
+
+Two qualifications to the capsule matter. First, `--all` can return the
+same oversized payload that defeated `tail -3`: a fixed upper extent
+prevents chasing a writer, not flooding context. Second, checking
+moreover's exit status checks the pager. Preserving and checking the
+producer's result is a separate obligation; a completed failed producer
+can still have unread output. Neither continuation nor state words alone
+solve these failures.
+
+I propose three questions below. They concern the initial position,
+completion authority, and output budget, respectively. The recommendations
+are mine; delegated reviewers `contract_audit` and `verbs_concurrency`
+supplied complementary checks. These additions specify trial choices,
+not implemented behavior or a ruling on trailer grammar.
+
+### QST-FOLLOW-ARMING: Where does attachment begin, and what prevents a missed wake?
+- Status: unanswered — new from the reported arm-at-launch and rearm cases
+- Why asking: a saved position does not establish a notification, and attaching after the first append can exclude the event the reader meant to capture.
+- Need: choose an attachment policy (or override)
+
+Options:
+- **A — beginning only for the first trial**: read existing content before
+  reaching new appends; no separate position-only attachment.
+- **B — current end only**: initial follow excludes existing content;
+  specify what happens to an unfinished line at attachment.
+- **C — explicit beginning or current frontier**: beginning remains the
+  ordinary read; a deliberate arm operation saves a position without
+  printing the existing backlog.
+
+**Recommendation**: (by Lector 6, GPT-6 Astra; `gpt-6-astra`, 2026-10-12)
+
+**C.** *Rationale*: ledger readers need an intentional starting boundary.
+In line mode, let the current frontier exclude completed old lines while
+retaining an unfinished one: arm on `old\npar`, append `tial\nnew\n`, and
+deliver `partial\nnew\n`. That includes a pre-arm prefix deliberately;
+strictly post-arm bytes require byte mode. A successful arm acknowledges
+a persisted generation and position; an absent source is not yet armed.
+For a controlled producer, establish the source and position before
+launch, without subsequently truncating or replacing that generation.
+
+The watcher must check for backlog when arming/rearming, with observation
+established before that check or an equivalent race-safe protocol. Merely
+watching changes after a fresh baseline can strand an intervening append.
+Notifications are scheduling hints; the cursor owns progress. Neither an
+arm acknowledgment nor a wake proves that the harness received or
+processed the output.
+
+*Confidence*: **0.75 — because** the workflow needs a starting position,
+but frontier semantics and the watcher handoff remain untried.
+*If wrong*: if callers reject the pre-arm fragment prefix, prefer a strict
+byte boundary. If the watcher cannot pass controlled appends in both the
+initial-arm and read/rearm gaps, a coupled arm/watch operation earns a
+separate proposal; bounded waiting alone does not fix a wrong position.
+
+**ANS:** (by Jérémie)
+[Fill this in]
+
+### QST-COMPLETION-AUTHORITY: What evidence may close a followed source generation?
+- Status: unanswered — new from the reported masked producer failure and CI watch
+- Why asking: EOF and quiet watcher exits establish neither final extent nor producer success; the final unterminated line also needs a completion rule.
+- Need: choose the source of completion evidence (or override)
+
+Options:
+- **A — file-only trial**: report backlog or caught-up; completion remains
+  unknown, and the caller separately retains the producer's result.
+- **B — optional explicit closure from the caller/capture owner**: a
+  declaration identifies the generation and final extent; producer outcome
+  is separate, including unknown. Without a declaration, behave as A.
+- **C — moreover owns the producer lifecycle**: launch/capture/wait becomes
+  part of the tool, with its own obligations for writers and exit results.
+
+**Recommendation**: (by Lector 6, GPT-6 Astra; `gpt-6-astra`, 2026-10-12)
+
+**B as the completion contract; A is a useful first trial without it.**
+*Rationale*: a reader of an ordinary file cannot infer that nobody will
+append again. Closure must be an explicit assertion by the owner of the
+capture, tied to this generation and final extent, with writer quiescence
+as its stated precondition. A quiet interval, vanished PID, matching text,
+or watcher exit is insufficient by itself. Closure makes a final fragment
+deliverable, but unread pages still require continuations. Emit terminal
+completion only after delivering through the declared extent. Later
+detected growth or replacement contradicts the declaration; do not
+silently follow it as the same closed source. Producer failure remains
+failure even when all its output has been read; pager success cannot
+certify producer success.
+
+*Confidence*: **0.8 — because** the evidence needs are distinct and the
+capture owner can supply facts the pager lacks; the declaration mechanism
+is still a design task. *If wrong*: if callers cannot reliably establish
+the final extent across all writers, keep A's unknown completion rather
+than guessing. A supervised capture owner may then be warranted.
+
+**ANS:** (by Jérémie)
+[Fill this in]
+
+### QST-OVERSIZED-RECORD: What happens when one complete line exceeds the output budget?
+- Status: unanswered — new from the reported 883 KB three-record read
+- Why asking: line counts and a finite captured extent do not bound bytes delivered to a reader; --all can reproduce the original context overflow.
+- Need: choose the first trial's delivery-budget policy (or override)
+
+Options:
+- **A — explicit byte paging only**: callers choose a byte allowance and
+  accept fragments; line mode and --all retain their unbounded-size meaning.
+- **B — line paging with an additional byte ceiling**: return whole lines
+  that fit; stop before an oversized next line, retaining its unread
+  position and giving a visible route to byte paging or a larger budget.
+- **C — automatic fragments**: split oversized lines within the budget,
+  adding an explicit fragment/reassembly contract for record readers.
+
+**Recommendation**: (by Lector 6, GPT-6 Astra; `gpt-6-astra`, 2026-10-12)
+
+**B for record readers; A supplies the explicit escape.** *Rationale*: a
+JSONL reader should not silently receive half a JSON object as a complete
+record. An opted-in byte ceiling must be hard for content, including
+overlap; metadata has a separately documented allowance. It must not be
+silently exceeded to fit one line. If no line fits, report the obstruction
+and retain the position, rather than advancing or calling the reader
+caught-up. Bytes already delivered from earlier fitting lines retain their
+ordinary successor. Explicit byte paging may split encoded characters as
+well as lines; it is a different reading mode. A byte bound is not an
+exact token or harness-context bound. Reject combining the ceiling with
+--all until their precedence is explicitly specified; do not advertise
+--all as the cure for the field case.
+
+*Confidence*: **0.75 — because** the reported failure directly establishes
+the need for a size budget, but no trial has compared refusal with
+fragments. *If wrong*: if stopped records routinely stall real readers,
+and explicitly framed fragments preserve reconstruction within their
+budgets, prefer C. The acceptance case must include a single record larger
+than the entire allowance, with no skipped bytes or false caught-up state.
+
+**ANS:** (by Jérémie)
+[Fill this in]
 
 ---
 
