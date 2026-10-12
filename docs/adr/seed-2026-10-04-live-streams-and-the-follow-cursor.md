@@ -75,7 +75,7 @@ model consumes everything anyway.
 single-stream paging before any demux work; they can share a train.
 
 ### QST-FOLLOW-SHAPE: Is follow-by-resume the right borrowing of `tail -f`?
-- Status: unanswered — Lector 6 consult routed for a second recommendation (his ask: "them thinking through tail -f with us")
+- Status: answered
 - Why asking: this decides the whole architecture of live-stream support — whether the tool ever waits, and what a cursor binds to.
 - Need: pick a letter (or override — an answer in any shape is complete)
 
@@ -216,13 +216,33 @@ and rearming the watcher: a durable cursor preserves a position, but
 cannot by itself ensure another wake. QST-FOLLOW-ARMING below makes that
 handoff an explicit trial obligation.
 
-**ANS:** (by Jérémie)
-[Fill this in]
+**ANS:** (by Jérémie Lumbroso)
+Yes, Option C (both, A first), and I would add that there be two modes for the second semantic: One that is time dependent (wait for 30 seconds) and one that is input depedent (wait for 10 lines) and maybe one that is a OR (wait 10 lines or 30 seconds, whichever is first) or and AND (wait at least 10 lines and at least 30 seconds), maybe with a max timeout of 60 mins (or some constant that is known and could be changed through settings).
+
+But here's my question, what about the following semantic:
+- in the current, finite model, eventual the cursor is `null`, and there's
+  nothing more to gather;
+- the extension to "follow" model that could be infinite seems to be:
+     1. unblocking follow, wherein, at the end of the file's current
+        content, you get the moreover providing a cursor instead of
+        `null`; when calling with that new cursor, two options: Or there
+        has been new data, in which case a page or less is sent to you;
+        or there has been no new data, in which case an empty page is
+        sent to you. Either way, it concludes with a trailer that contains
+        how much data read so far, read in that page, and a cursor for
+        the next query.
+     2. blocking follow, wherein, at the end of the file's current
+        content, moreover waits until it receives another page, and then
+        it sends it to the client with the trailer and a cursor for the
+        next page
+     3. the blocking can time out at content size (when enough data
+        has been received) or at time (30s or 60s elapsed, etc.), either or
+        both
 
 ---
 
 ### QST-GROWING-TOTALS: What may the trailer say while the stream grows?
-- Status: unanswered — his to rule: the trailer grammar is frozen, and this needs a variant
+- Status: answered
 - Why asking: `{total}` is a promise about a finished quantity and `cursor: null` means no-more-EVER; a growing stream strains both, and no surface may drift from the frozen grammar without his ruling.
 - Need: pick a letter (or override)
 
@@ -351,8 +371,8 @@ for the delivery budget. Neither may be mislabeled caught-up or successful
 completion. Source closure, remaining delivery, and producer outcome are
 separate facts; the new QSTs below ask how to represent them honestly.
 
-**ANS:** (by Jérémie)
-[Fill this in]
+**ANS:** (by Jérémie Lumbroso)
+Again, approving Option C, and my understanding is that this invites the design of a new grammar while not proposing one explicitly. But I still wanted my generalization of the cursor in QST-FOLLOW-SHAPE to be evaluated.
 
 ---
 
