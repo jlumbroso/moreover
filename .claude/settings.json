@@ -1,5 +1,6 @@
 {
     "cleanupPeriodDays": 99999,
+    "switchModelsOnFlag": false,
     "alwaysThinkingEnabled": true,
     "showThinkingSummaries": true,
     "effortLevel": "high",
@@ -7,6 +8,10 @@
     "promptSuggestionEnabled": false,
     "permissions": {
         "allow": [
+            "Bash(git push:*)",
+            "Bash(git checkout:*)",
+            "Bash(rm:*)",
+            "Bash(git rm:*)",
             "Bash(echo $CLAUDE_CODE_SESSION_ID)",
             "Bash(echo \"$CLAUDE_CODE_SESSION_ID\")",
             "Bash(echo \"Session UUID: $CLAUDE_CODE_SESSION_ID\")",
@@ -126,11 +131,7 @@
             "Bash(git reset --hard origin/*)"
         ],
         "ask": [
-            "Bash(rm:*)",
-            "Bash(git rm:*)",
             "Bash(chmod:*)",
-            "Bash(git push:*)",
-            "Bash(git checkout:*)",
             "Read(.git/**)",
             "Read(package-lock.json)",
             "Read(Pipfile.lock)"
