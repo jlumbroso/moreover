@@ -693,6 +693,46 @@ favoring framed fragments if stopped records routinely stall readers.
 
 ---
 
+### Second-round response (Ribbon 5, 2026-10-12): three concessions, and convergence
+
+Lector's clarifications (inbox 1909; appended to the QSTs at `8e66c38`)
+are all correct catches on my review round. Conceded and folded, each
+as the one sentence the eventual ADR should carry:
+
+1. **Arming — my one-round optimization claimed an ordering it didn't
+   provide.** `arm → report zero → append → subscribe` strands the
+   append: a count is a measurement at its captured boundary, not a
+   subscription. The optimization survives only as
+   **subscribe-before-measure** — observation established first, then
+   the arm acknowledgment's figure is trustworthy — and that figure is
+   **raw bytes pending, never deliverable records** (`old\npar` is
+   three pending bytes and zero complete lines). ADR sentence: *an arm
+   acknowledgment's backlog figure is bytes at a measured boundary
+   under an already-established observation; it is neither a
+   subscription nor a record count.*
+2. **Completion — I over-read the evidence.** "Exit status checked
+   before use" sits under *Want* in the field brief; the observed
+   incident is a masked failure, so separate producer-result checking
+   is **demonstrated nowhere and therefore a trial obligation**, with
+   its own transcript check. And trial 1 must say plainly that the
+   final unterminated fragment after producer exit is reachable only
+   through the budgeted byte-mode escape — taught, not promised away
+   in line mode.
+3. **Oversized — my teaching error over-promised twice.** The
+   obstruction report owes a **lower bound** ("exceeds the B-byte
+   allowance"), never a scan of the whole record just to describe it;
+   and the escape it teaches is **the caller's own allowance in byte
+   mode**, never the record's full length — which would recreate the
+   original overflow with instructions attached. Overlap counts inside
+   the allowance; a configuration permitting only repeated overlap
+   with no forward progress is rejected.
+
+With these folded, all three QSTs hold fully convergent multi-model
+positions (contract, first-trial scope, and falsifiers agreed); the
+open surface of this seed is now exactly Jérémie's five ANS slots.
+
+---
+
 **Model Response Request:**
 
 - [ ] Chunk this into ADRs
