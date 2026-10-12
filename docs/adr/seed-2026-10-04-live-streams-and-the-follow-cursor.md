@@ -473,6 +473,31 @@ byte boundary. If the watcher cannot pass controlled appends in both the
 initial-arm and read/rearm gaps, a coupled arm/watch operation earns a
 separate proposal; bounded waiting alone does not fix a wrong position.
 
+**Recommendation**: (by claude-fable-5, 2026-10-12 — review round)
+
+**Concur: C — with a scope split and two sharpenings.** *Rationale*:
+the two field cases need different halves of C — case 2 (output file
+created at launch) is served by BEGINNING arming alone, since arming
+at launch IS the beginning; only case 1 (pre-existing megabyte
+ledgers) needs the frontier arm, because there is no cheap frontier
+emulation that doesn't first print the backlog it exists to skip. So
+the first trial can ship beginning-only and adopt case 2 the same
+hour, with the frontier arm landing for case 1 — C as the contract,
+A as its first installment. Sharpening one: Lector's keep-the-
+unfinished-fragment frontier rule is the SAME principle as
+OVERSIZED-RECORD's no-half-records — a record reader must never be
+handed a boundary that splits a record silently; worth stating once,
+jointly, in the eventual ADR. Sharpening two: the arm acknowledgment
+should carry the backlog count (bytes since position — one stat,
+already paid), making the watcher's race-safe backlog check one round
+instead of watch-then-read. Grammar note for the docket: arming
+without printing is desk-world by the two-world grammar (it pages
+nothing), so the arm operation is a desk verb — name to the naming
+authority before any trial ships it. *Confidence*: 0.7 — because the
+contract reasoning is solid but no arm operation exists in any form.
+*If wrong*: if the desk-verb grammar fight makes the arm op heavy for
+a trial, A (beginning-only) is the honest retreat, and case 1 waits.
+
 **ANS:** (by Jérémie)
 [Fill this in]
 
@@ -510,6 +535,32 @@ capture owner can supply facts the pager lacks; the declaration mechanism
 is still a design task. *If wrong*: if callers cannot reliably establish
 the final extent across all writers, keep A's unknown completion rather
 than guessing. A supervised capture owner may then be warranted.
+
+**Recommendation**: (by claude-fable-5, 2026-10-12 — review round)
+
+**Concur: B as the contract, A as the trial — and I'd make the trial
+boundary a testable sentence: in trial 1 the "finished" state is
+UNREACHABLE.** *Rationale*: this is the first-trial-scope challenge
+Lector asked for, answered by tightening rather than loosening. With
+no closure mechanism at all, a trial-1 trailer may only ever say
+more-available, caught-up, or source-changed — never finished — and
+that is honest, cheap, and directly checkable in Concertmaster's
+flared transcripts (any trial-1 "finished" is a bug by definition).
+Both field cases survive this: case 2's producer outcome is already
+checked separately by the reader ("exit status checked before use —
+the contract's own sentence"), which is Lector's pager-success-cannot-
+certify-producer-success separation practiced in the wild. B's
+declaration mechanism then arrives as designed machinery in the ADR,
+not improvised in a trial — and note it is desk-world too (declaring
+closure pages nothing), so its name also routes to the naming
+authority alongside the arm verb. C I'd keep rejected even later:
+owning the producer lifecycle makes moreover a supervisor, a different
+tool with different failure obligations. *Confidence*: 0.8 — because
+the unreachable-finished trial rule converts a design uncertainty into
+a regression test. *If wrong*: if trial transcripts show readers
+repeatedly needing closure they can't get (polling a long-dead
+producer's file), B's mechanism gets promoted from ADR work to
+trial 2.
 
 **ANS:** (by Jérémie)
 [Fill this in]
@@ -549,6 +600,36 @@ fragments. *If wrong*: if stopped records routinely stall real readers,
 and explicitly framed fragments preserve reconstruction within their
 budgets, prefer C. The acceptance case must include a single record larger
 than the entire allowance, with no skipped bytes or false caught-up state.
+
+**Recommendation**: (by claude-fable-5, 2026-10-12 — review round)
+
+**Concur: B with A as escape — and the asked challenge, answered: when
+no complete record fits, decompose into two single-outcome
+invocations.** *Rationale*: mixing partial delivery and an obstruction
+report in ONE invocation gives a reader a page that is simultaneously
+success and failure — the exact state-confusion class the field
+evidence indicts. Instead: an invocation that can deliver fitting
+lines delivers them with an ordinary trailer (state: more-available)
+and a continuation parked exactly at the oversized line; the NEXT
+invocation meets the obstruction head-on and is a pure teaching error
+— no content, nonzero exit, and the error carries the actionable
+numbers (the record's byte length and its offset) so a reader without
+hands can compose the correct `--bytes N` escape in one round instead
+of probing ("errors are written to the reader," the house doctrine,
+applied to a size). Every invocation has one outcome; no false
+caught-up is even expressible. Two codicils: the obstruction error is
+where the byte-mode escape is TAUGHT, which answers Lector's
+don't-advertise---all point structurally; and this QST is not
+actually follow-scoped — plain line-mode paging over the same ledger
+has the identical hazard today, so the ceiling can ship as a
+stepping-stone alongside `--until`, before any follow work, and the
+883 KB class dies first. *Confidence*: 0.75 — because the
+decomposition is clean on paper and matches the audited
+single-outcome grain of the existing CLI, but no oversized-record
+reader has tried it. *If wrong*: Lector's own flip condition stands —
+if stopped records stall real readers in the flared transcripts,
+framed fragments (C) earn it, and the acceptance case is theirs
+verbatim.
 
 **ANS:** (by Jérémie)
 [Fill this in]
