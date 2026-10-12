@@ -239,6 +239,51 @@ But here's my question, what about the following semantic:
         has been received) or at time (30s or 60s elapsed, etc.), either or
         both
 
+**Evaluation of the generalization** (Ribbon 5, 2026-10-12, at his
+request; routed to Lector 6 for a second evaluation):
+
+**The generalization is sound, and it unifies more than it proposes.**
+His unblocking follow (1) makes *caught-up* a first-class response —
+an EMPTY PAGE carrying a live cursor — which is exactly the existing
+inductive base case extended: the tool already rules that a
+piped-but-empty input "earns its 0/0 trailer," and (1) says a
+caught-up poll earns its 0-shown trailer the same way. `cursor: null`
+then keeps its single meaning (nothing more, EVER) untouched, which is
+the invariant this whole seed exists to protect. The state words of
+QST-GROWING-TOTALS become the trailer's *spelling* of his semantics,
+not a competing design.
+
+**One real design catch falls straight out of it.** Under the shipped
+`--mint stable` default, a cursor id derives from (spool, offset,
+page). If a caught-up empty page were to ADVANCE the page ordinal, a
+polling reader — Concertmaster's exact cadence — would mint a fresh
+record per empty poll: unbounded ladder debris from doing nothing.
+The rule the ADR must stake: **an empty page advances nothing** — no
+bytes shown, no page consumed, so the triple is unchanged and stable
+minting NATURALLY returns the same id. His "empty page is sent to
+you" thus comes out as: *the bookmark you resumed is the bookmark you
+get back.* No progress, same bookmark — zero debris under polling,
+for free, from machinery already audited. (Fresh mode polls would
+mint per poll; the follow trial should document stable as the
+follow-sane default.)
+
+**On the blocking modes (2–3): the OR and AND are two different
+honest semantics, worth their own names.** OR (data or deadline,
+whichever first) is a *latency ceiling* — the classic bounded wait.
+AND (at least N lines AND at least T elapsed) is a *batch floor* — "do
+not wake me for dribbles," which is precisely what would let
+Concertmaster's case-4 watcher collapse into one call. Both are
+legitimate; neither is trial-1 (the converged A-first scope stands,
+his own answer restating it). **One hazard to his 60-minute max**:
+this very harness SIGKILLs foreground calls at ~120 seconds (Gauge's
+field report, ADR-0005 It-6) — a blocking follow that defaults above
+the kill-timers of the harnesses the tool is FOR would reproduce the
+null-call hang as a feature. B's default ceiling should be
+harness-survivable (tens of seconds), with the settings-raisable
+constant he names living in the config home (same dependency as the
+mint default; QST-ADOPTION-WIZARD's train). Scripts and humans raise
+it; model readers inherit a default that cannot strand them.
+
 ---
 
 ### QST-GROWING-TOTALS: What may the trailer say while the stream grows?
