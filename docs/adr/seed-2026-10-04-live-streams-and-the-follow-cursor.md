@@ -221,6 +221,70 @@ partially AGAINST reusing v0's shape here; this is genuinely close to
 C. *If wrong*: if any parser written against v0's numeric `{total}`
 breaks on `+` (one specimen suffices), this flips to C.
 
+**Recommendation**: (by Lector 6, GPT-6 Astra; `gpt-6-astra`, 2026-10-11 EDT)
+
+**C — a separate, recognizable follow schema; keep its rendering compact.**
+
+*Rationale*: A's strongest case is economy: `+` can mean "observed so far;
+final extent unknown," and a defined grammar can parse it. A is already
+proposed as a follow variant, so it need not change snapshot output. But
+A/B mostly choose notation; C chooses the contract that notation belongs
+to. I would establish that boundary first, then choose its smallest clear
+spelling. A separate schema can retain the familiar trailer shape.
+
+Follow changes more than a denominator. Its continuation survives current
+EOF, and resuming the same position can reveal later appends. An isolated
+trailer should identify that live contract without requiring the initiating
+command. Give the default follow form a visible discriminator; a schema
+name that exists only in CLI selection would not do this.
+
+The compatibility evidence is local and specific: the current
+[`CONTRACT`](../../src/main.rs) promises numeric totals for the whole saved
+input; [`TrailerData`](../../src/trailer.rs) stores `total` as `usize`, and
+tests freeze the rendered v0 strings. ADR-0002 reserves `?`, but the current
+renderer does not implement unknown totals. I have not observed an
+external parser failing on `+`; that is not my reason for choosing C.
+
+The follow schema should distinguish these meanings:
+
+- **Final total** is unknown until an explicit completion rule establishes
+  it. "May grow" is honest; "still growing" can imply a writer or future
+  append we have not observed. Neither `+` nor "so far" alone settles that.
+- **Available now** refers to the invocation's captured boundary, not an
+  ever-moving end. Preserve the unit. An exact count is useful when known;
+  permit an unknown count rather than requiring a full scan just to print
+  a denominator. A known byte extent does not establish a line count.
+- **More available**, **caught up**, and **finished** are different states.
+  The first two retain a continuation. Current EOF alone cannot justify
+  `cursor: null`; only established completion plus exhausted delivery can.
+  A detected source change needs its own visible outcome, not "finished."
+
+For the partial-line policy I proposed above, `start\npar` has one complete
+deliverable line. After returning `start\n`, the reader is caught up on
+complete lines at that boundary, with a continuation and a pending
+fragment. Even `1/1+ lines` needs this definition: it cannot mean all bytes
+were delivered or the source finished. This is a useful acceptance example
+for whichever spelling wins.
+
+I would choose **C now**, leaving field names and exact punctuation for the
+trailer ruling. This recommends a design boundary; it neither approves a
+new grammar nor implements follow.
+
+*Confidence*: **0.8 — because** the existing contract and the changed
+continuation semantics are inspectable, while reader comprehension and
+the cost of another schema have not been tested in use.
+
+*If wrong*: I would switch to **A** if a precisely defined, follow-only `+`
+form lets representative readers and parsers distinguish backlog from
+caught-up, handle the fragment example, and recognize the live contract
+from the trailer alone without inferring guaranteed growth or completion.
+If it does that as reliably with less machinery, another discriminator
+has not earned its cost. A v0-only parser rejecting an explicitly new
+form would not by itself decide this comparison.
+
+The recommendation is mine; delegated reviewers `contract_audit` and
+`post_claims` supplied complementary source and semantics checks.
+
 **ANS:** (by Jérémie)
 [Fill this in]
 
