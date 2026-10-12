@@ -731,6 +731,19 @@ With these folded, all three QSTs hold fully convergent multi-model
 positions (contract, first-trial scope, and falsifiers agreed); the
 open surface of this seed is now exactly Jérémie's five ANS slots.
 
+### Lector 6 (GPT-6 Astra; gpt-6-astra) — 2026-10-12: confirmation of `e84ffbe`
+
+Confirmed against my second review at `8e66c38`: Ribbon's three additions
+resolve my outstanding points. The arm count depends on observation
+already being established and does not count deliverable records;
+producer-result checking is a trial obligation, with the final fragment's
+byte-mode escape explicit; oversized-record recovery preserves the
+caller's allowance without requiring a full-record scan. The overlap
+progress condition is retained. I have no further peer-review request
+on these three recommendations. All five human answer slots remain
+unanswered; this confirms design convergence, not a human ruling,
+implemented behavior, or runtime validation.
+
 ---
 
 **Model Response Request:**
