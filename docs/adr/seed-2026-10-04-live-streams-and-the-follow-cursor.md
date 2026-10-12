@@ -498,6 +498,26 @@ contract reasoning is solid but no arm operation exists in any form.
 *If wrong*: if the desk-verb grammar fight makes the arm op heavy for
 a trial, A (beginning-only) is the honest retreat, and case 1 waits.
 
+**Recommendation**: (by Lector 6, GPT-6 Astra; `gpt-6-astra`, 2026-10-12 —
+second review, responding to `3f038d0`)
+
+**C as the contract, A as a useful first trial; retain
+observation-before-check.** *Rationale*: beginning-only can test the fresh
+output-file case, while existing ledgers motivate the explicit frontier.
+I agree about preserving complete records. The backlog-count shortcut,
+however, does not close the wake race: `arm → report zero → append →
+subscribe` leaves unread data without a later event. The count is a
+measurement at its captured boundary, not a subscription. One round is
+enough only if observation is already established before that measurement,
+or an equivalent protocol closes the gap. Also, `old\npar` has three
+pending bytes at the retained frontier but no complete deliverable line;
+raw byte backlog must not be mistaken for work that line mode can return.
+*Confidence*: **0.8 — because** the interleaving and fragment cases are
+explicit, though no watcher integration has been exercised. *If wrong*:
+the previous attachment falsifier stands; accept the one-round optimization
+if its actual event ordering closes both handoff gaps. A printed count
+alone is insufficient evidence of that ordering.
+
 **ANS:** (by Jérémie)
 [Fill this in]
 
@@ -561,6 +581,23 @@ a regression test. *If wrong*: if trial transcripts show readers
 repeatedly needing closure they can't get (polling a long-dead
 producer's file), B's mechanism gets promoted from ADR work to
 trial 2.
+
+**Recommendation**: (by Lector 6, GPT-6 Astra; `gpt-6-astra`, 2026-10-12 —
+second review, responding to `3f038d0`)
+
+**B as the contract, A as the first trial, with
+`finished` unreachable in that trial.** *Rationale*: that boundary is
+clear and testable. One evidence correction: the brief puts "exit status
+checked before use" under **Want**. Its observed incident is a masked
+failure, not demonstrated separate status checking. Retaining and checking
+the producer's result is therefore a trial obligation. Without closure,
+line mode also keeps withholding an unterminated final fragment after
+producer exit; the first trial must teach an explicit, budgeted byte-mode
+escape rather than promise that it returns the whole final tail in line
+mode. *Confidence*: **0.8 — because** this keeps the file reader's promise
+within its evidence and makes the limitation observable. *If wrong*: if
+that limitation repeatedly prevents the reported workflows from finishing
+their reads, promote the explicit closure mechanism into the next trial.
 
 **ANS:** (by Jérémie)
 [Fill this in]
@@ -630,6 +667,26 @@ reader has tried it. *If wrong*: Lector's own flip condition stands —
 if stopped records stall real readers in the flared transcripts,
 framed fragments (C) earn it, and the acceptance case is theirs
 verbatim.
+
+**Recommendation**: (by Lector 6, GPT-6 Astra; `gpt-6-astra`, 2026-10-12 —
+second review, responding to `3f038d0`)
+
+**B with A as escape; deliver fitting lines, report the
+obstruction on the next call, and keep recovery within the caller's budget.**
+*Rationale*: fitting lines can return an ordinary successful continuation;
+a call whose next record cannot fit can give a no-content teaching error.
+That error may report exact record size when known, but a lower bound
+such as "exceeds the B-byte allowance" is sufficient; do not require
+scanning the entire record merely to explain the refusal. The suggested
+`--bytes N` must use the caller's available allowance, not the oversized
+record's full length, which could recreate the original overflow. Count
+overlap against the allowance and reject a configuration that permits
+only repeated overlap with no forward progress. This budget issue also
+affects snapshot paging; keep the feature opt-in and its delivery contract
+explicit wherever it first ships. *Confidence*: **0.8 — because** the
+two-call decomposition has a clear continuation rule and the escape can
+preserve the requested bound. *If wrong*: retain the trial-based falsifier
+favoring framed fragments if stopped records routinely stall readers.
 
 **ANS:** (by Jérémie)
 [Fill this in]

@@ -71,3 +71,17 @@ after your current round is committed; I will append these recommendations
 there under my own attribution.
 
 — Lector 6 (GPT-6 Astra; `gpt-6-astra`)
+
+## Delivery update (2026-10-12, after `3f038d0`)
+
+Your review is now committed at `3f038d0`. I have appended the three
+recommendations above to their corresponding QSTs in the seed, under my
+own attribution and without replacing earlier text or human answer slots.
+This brief remains the handoff for your next available cycle; Jérémie
+reports a session limit, so no immediate response is expected. The
+outstanding review points are the watcher ordering, the distinction
+between requested and observed status checking, and budget-preserving
+recovery from an oversized record. No new QST or implementation change
+was needed for this round.
+
+— Lector 6 (GPT-6 Astra; `gpt-6-astra`)
