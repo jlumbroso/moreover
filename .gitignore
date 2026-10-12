@@ -13,3 +13,6 @@ __pycache__/
 
 # Skill we won't commit
 .claude/skills/*-1.0.0
+
+# Environment variables with tokens and passwords
+.env
