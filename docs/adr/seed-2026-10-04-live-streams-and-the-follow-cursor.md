@@ -239,6 +239,8 @@ But here's my question, what about the following semantic:
         has been received) or at time (30s or 60s elapsed, etc.), either or
         both
 
+---
+
 **Evaluation of the generalization** (Ribbon 5, 2026-10-12, at his
 request; routed to Lector 6 for a second evaluation):
 
@@ -283,6 +285,132 @@ harness-survivable (tens of seconds), with the settings-raisable
 constant he names living in the config home (same dependency as the
 mint default; QST-ADOPTION-WIZARD's train). Scripts and humans raise
 it; model readers inherit a default that cannot strand them.
+
+---
+
+### Lector 6 (GPT-6 Astra; gpt-6-astra) — 2026-10-12: evaluation of the cursor generalization
+
+**Yes: this is a coherent generalization of the continuation contract.**
+Your two C answers settle A-first and a separate follow schema; the
+remaining work is to give your semantics precise transitions and a
+representation. I support an empty successful response at temporary
+catch-up, with a continuation for the next query. A cursor identifies
+where to continue; it does not assert that content is available now.
+
+**Separate the position, the current observation, and the wait policy.**
+The continuation binds to a source generation and unread position.
+Availability and observed extent belong to the response; waiting belongs
+to this request. That lets the same continuation support an immediate
+poll now and a bounded wait later. Reusing a live bookmark need not repeat
+the same response: new content may arrive. Snapshot replay retains its
+existing promise. This is also a useful boundary for the
+[portable-protocol proposal](seed-2026-10-12-a-portable-paging-protocol-and-familiar-tool-shims.md).
+
+#### Empty is a delivery quantity, not the whole state
+
+After reading 20 lines, a caught-up poll reports **zero newly delivered
+lines and cumulative position 20**, not cumulative zero. Today's
+[`TrailerData.shown`](../../src/trailer.rs) is cumulative, so Ribbon's
+"0-shown" must mean a new page-local quantity in the follow schema.
+I would make an empty poll print no content, including overlap. On a
+progressing page, repeated overlap consumes the byte allowance but is
+separate from new units and forward progress.
+
+No-output outcomes still differ. Caught-up retains a live continuation;
+an oversized next record is an obstruction; a missing/replaced source or
+read failure is an explicit error. Established closure plus exhaustion
+can make the continuation null without advancing the position. Null
+means no remaining delivery for that completed source, not successful
+producer execution. The first file-only trial still cannot establish
+closure, as proposed under QST-COMPLETION-AUTHORITY.
+
+#### Same bookmark is a useful rule we must implement explicitly
+
+I agree with Ribbon that a successful caught-up resume should preserve
+position and delivery ordinal. I would return the incoming continuation
+directly instead of reminting it. Initial attachment to an empty source
+still creates its first continuation. For follow, my proposed policy is
+that even `fresh` controls newly created successors, not a no-progress
+poll; that interaction must be recorded explicitly rather than inherited
+silently from the snapshot flag.
+
+The result does not come "for free" from the current implementation.
+[`mint_next`](../../src/paging.rs) currently returns null at EOF and
+increments the page ordinal for a nonterminal successor.
+[`put_cursor`](../../src/store.rs) stages and syncs a record even on
+stable reuse, and updates use/recovery bookkeeping; cleanup can fail.
+Stable re-derivation also need not reproduce an incoming token previously
+minted fresh. Returning the existing token avoids new cursor publication;
+it does not imply zero I/O or a free pass around retention/recency policy.
+
+Moreover, today's spool identity hashes the completed bytes. Re-snapshot
+after an append and that identity changes. Follow needs an explicit live
+generation identity that survives appends, with its detection and
+retention limits stated. Appending only an unfinished line can change
+observed extent while leaving both deliverable progress and the bookmark
+unchanged. Those facts belong in different parts of the model.
+
+#### Blocking changes readiness, not the meaning of continuation
+
+For the later blocking mode, let `k` count complete unread units from the
+requested position, including existing backlog. Let `t` be elapsed
+monotonic time from one fixed start of the wait. These are different
+readiness policies:
+
+| Requested policy | Ready when |
+| --- | --- |
+| Time window | `t >= T` |
+| Input threshold | `k >= N` |
+| OR | `k >= N` **or** `t >= T` |
+| AND | `k >= N` **and** `t >= T` |
+
+With ten lines and thirty seconds, ten lines at five seconds release OR
+then, while AND waits until thirty. Nine lines at thirty seconds release
+OR short; AND still waits. Thus Ribbon's OR shorthand needs **enough
+data**, not merely first-byte activity; AND's thirty seconds is a minimum
+dwell, not a timeout. An explicit batch request should wait to fill even
+when a short batch is already available; plain nonblocking follow returns
+the available short page immediately.
+
+All waiting policies need a separate maximum `M`, never restarted by an
+append. Expiring it returns what can be delivered within budget, possibly
+nothing, and identifies that the maximum released the call without
+claiming the requested threshold was met. Reject a minimum dwell above
+the maximum. Established closure should also release a final short batch;
+ordinary file EOF does not establish that closure. A timeout does not
+turn an unfinished line into a complete one.
+
+The maximum needs the caller's actual execution budget, with room to
+deliver the result; a configured sixty minutes may suit some callers.
+The recorded harness hang motivates this requirement but supplies no
+universal kill timer or default guaranteed to survive every harness.
+A bounded intentional wait also does not by itself bound all filesystem
+or stdout latency.
+
+One amendment to **my earlier extent rule**: A captures its upper byte
+boundary when called; B must allow the observed extent to grow while
+waiting, then fix a finite delivery boundary when released. Otherwise it
+could never deliver the appends it waited for. Once fixed, that boundary
+must not chase further writes. Input thresholds remain subordinate to
+the separate output budget: reject statically incompatible thresholds and
+page limits. If the byte ceiling prevents satisfying a batch at runtime,
+release any fitting complete lines with an explicit budget reason and
+ordinary successor; a call with no fitting line reports the obstruction
+at its unchanged position. This preserves the earlier fitting-lines-then-
+obstruction rule without claiming the batch threshold was met. The
+oversized-record question supplies the escape.
+
+**Recommendation**: preserve your generalization with these distinctions;
+implement the immediate poll first, then add wait policies around the
+same delivery operation. *Confidence*: **0.85 — because** the transitions
+fit the source/position model and the field cases, and the current source
+shows exactly where the new behavior must be introduced; no follow
+implementation has been tried. *If wrong*: if trials show that separating
+readiness from delivery loses required source consistency, revise that
+boundary and couple their observation more tightly before adding waiting.
+The existing trial falsifiers on retention, closure, and oversized records
+remain live. This evaluation is mine; delegated reviewers `contract_audit`
+and `verbs_concurrency` supplied complementary source and timing checks.
 
 ---
 
