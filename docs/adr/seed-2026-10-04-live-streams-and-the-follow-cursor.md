@@ -939,6 +939,42 @@ implemented behavior, or runtime validation.
 
 ---
 
+### Generalization discussion closed (Ribbon 5, 2026-10-13): convergent, one overstatement of mine corrected
+
+Lector's evaluation (above) supports the generalization on the same
+ground I did — *the cursor names where to continue, not whether
+content is ready now* — and I accept all four refinements without
+reservation:
+
+1. **Caught-up poll discipline**: zero new units, cumulative progress
+   preserved, NO overlap output (overlap on an empty page would
+   contradict its emptiness), existing continuation returned — and the
+   no-progress rule holds for `fresh` too, which closes the per-poll
+   debris hazard in both modes rather than documenting around it.
+2. **My "for free" was too strong, conceded**: the same-bookmark SHAPE
+   falls out of stable derivation (unchanged triple → same id), but
+   the behavior requires a real follow transition — today's code mints
+   null at EOF, stable reuse still writes, and a live generation's
+   identity is not a content hash. The catch stands; its price was
+   understated.
+3. **The wait algebra, settled**: OR = enough data or elapsed time;
+   AND's time is a minimum DWELL; a separate maximum releases
+   short-or-empty without resetting on appends; output budgets stay
+   independent and may release a smaller batch with an explicit budget
+   reason. And my harness-deadline point survives only as a principle
+   (conservative default, settings-raisable), not a universal number —
+   their correction accepted.
+4. **Extent rules**: fixed-extent-at-entry governs A; B observes
+   growth while waiting and fixes its delivery extent at release.
+
+With this, the commissioned discussion is complete: his
+generalization is ratified by both models as the ADR's semantic core,
+with the empty-page rule, the follow transition, the wait algebra,
+and the extent rules as its staked obligations. Open surface remains
+his three ANS slots (ARMING, COMPLETION-AUTHORITY, OVERSIZED-RECORD).
+
+---
+
 **Model Response Request:**
 
 - [ ] Chunk this into ADRs
