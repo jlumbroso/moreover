@@ -68,8 +68,9 @@ brief from to slug:
     #!/usr/bin/env bash
     set -euo pipefail
     ts=$(date -u +"%Y-%m-%d-%H%M")
-    slug=$(echo "{{slug}}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//')
-    file="docs/inbox/${ts}-{{from}}-to-{{to}}-${slug}.md"
+    slug=$(echo {{quote(slug)}} | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//')
+    FROM={{quote(from)}}; TO={{quote(to)}}
+    file="docs/inbox/${ts}-${FROM}-to-${TO}-${slug}.md"
     if [[ -e "$file" ]]; then echo "Error: $file already exists" >&2; exit 1; fi
     mkdir -p docs/inbox
     # Deliberately do NOT touch the file — this recipe only RESERVES the
@@ -91,8 +92,9 @@ completion from slug:
     #!/usr/bin/env bash
     set -euo pipefail
     ts=$(date -u +"%Y-%m-%d-%H%M")
-    slug=$(echo "{{slug}}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//')
-    file="docs/inbox/${ts}-{{from}}-completion-${slug}.md"
+    slug=$(echo {{quote(slug)}} | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//')
+    FROM={{quote(from)}}
+    file="docs/inbox/${ts}-${FROM}-completion-${slug}.md"
     if [[ -e "$file" ]]; then echo "Error: $file already exists" >&2; exit 1; fi
     mkdir -p docs/inbox
     # Reservation only — see `brief` recipe note.
@@ -109,8 +111,9 @@ broadcast from slug group='crew':
     #!/usr/bin/env bash
     set -euo pipefail
     ts=$(date -u +"%Y-%m-%d-%H%M")
-    slug=$(echo "{{slug}}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//')
-    file="docs/inbox/${ts}-{{from}}-to-{{group}}-${slug}.md"
+    slug=$(echo {{quote(slug)}} | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//')
+    FROM={{quote(from)}}; GROUP={{quote(group)}}
+    file="docs/inbox/${ts}-${FROM}-to-${GROUP}-${slug}.md"
     if [[ -e "$file" ]]; then echo "Error: $file already exists" >&2; exit 1; fi
     mkdir -p docs/inbox
     # Reservation only — see `brief` recipe note.
@@ -306,7 +309,7 @@ update-seat-titles:
 [group('crew')]
 [doc("Wake a seat by sending a message to its tmux session (--force to override guards)")]
 wake seat message *flags='':
-    @pneumatic wake {{seat}} --message "{{message}}" {{flags}}
+    @pneumatic wake {{seat}} --message {{quote(message)}} {{flags}}
 
 # `pulse` surfaces 🟪 PERM-STALL; without this recipe there is nothing to
 # resolve one with (FLEET-TOOLING-HANDBOOK step 4: always add rescue at
@@ -434,7 +437,7 @@ safe-commit message +files:
     echo "📝 Staged for commit:"
     git diff --cached --stat
     echo ""
-    git commit -m "{{message}}"
+    git commit -m {{quote(message)}}  # quote(): message is data — $()/backticks in it EXECUTED before (porthole incident 2026-10-12)
 
 # ─── ADRs — Architecture Decision Records ────────────────────────────────────
 #
