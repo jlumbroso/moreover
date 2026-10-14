@@ -632,6 +632,23 @@ not implemented behavior or a ruling on trailer grammar.
 - Why asking: a saved position does not establish a notification, and attaching after the first append can exclude the event the reader meant to capture.
 - Need: choose an attachment policy (or override)
 
+NOT: (Ribbon 5, 2026-10-13 — plain-words restatement, after Jérémie
+read this as "whether to follow," a non-question.) This QST is NOT
+about follow modes. In moreover's own vocabulary it asks: **can you
+mint a bookmark at the END of a file without printing everything
+before it?** Today the only way to obtain a cursor is to read; so on a
+megabyte ledger, "start following from NOW" has no honest spelling —
+arriving at the frontier costs printing the whole backlog (the 883 KB
+case). C says: reading from the beginning stays the ordinary read, AND
+a deliberate silent place-the-bookmark-at-the-end operation exists
+(desk-world; name to the naming authority). The second half (missed
+wake) is not a choice but a trial obligation: between "I read to the
+end" and "my watcher re-arms," an append can land unannounced — the
+cursor keeps your place but cannot ring a bell, so the trial must
+prove the subscribe-before-measure ordering. That a question asked of
+its own human read as a non-question is phrasing debt, recorded here
+per the explainer's-betrayal doctrine.
+
 Options:
 - **A — beginning only for the first trial**: read existing content before
   reaching new appends; no separate position-only attachment.
