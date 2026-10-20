@@ -3,7 +3,7 @@ name: adr-authoring
 description: Use BEFORE writing or editing any ADR, seed, or QST/ANS block in docs/adr/ — the template's minimal shape, the QST grammar and handles, the catch-the-author Recommendation form, and the four real-world malformations that break parsing. This skill IS the read-the-template step; skipping it re-creates the failure it exists to fix.
 ---
 
-<!-- skill version: "adr-authoring 3.11.6" — co-versioned with human-ai-collaboration-template-A; assembled from Rubricator 5's corpus-adherence syllabus -->
+<!-- skill version: "adr-authoring 3.12.0" — co-versioned with human-ai-collaboration-template-A; assembled from Rubricator 5's corpus-adherence syllabus -->
 
 # Writing parseable ADRs, seeds, and questions
 
@@ -15,7 +15,7 @@ Across ~1,100 real specimens, 76% of documents that clearly *attempt* this metho
 
 ## What asking a human costs (read this before writing any QST, Recommendation, or tour)
 
-Human attention is **scheduled, not just spent**: an open question, a recommendation round, or a tour announcement causes the human to *plan* a focus slot, turn every context dial to the right place — and a malformed or unready ask converts that prepared depth into logistics. In the founder's own words, when a broken batched ask met a scheduled deep-focus slot: *"it makes it scream. It psych'ed itself up… and it is being left with nothing to do."* A silent failure is worse — *"the human is the only one witnessing the problem… it's like being gaslit by the software."* So the machinery below is not formatting: the Recommendation form exists so answering degrades to accept/override; status tokens exist so whose-ball-it-is never needs re-deriving; and the readiness bar for anything that schedules human attention is **walked-yourself-first** — a green parse is not readiness, and never let an unready ask *render* as ready. Tours are the extreme case; the tours field guide is their authority.
+Human attention is **scheduled, not just spent**: an open question, a recommendation round, or a tour announcement causes the human to *plan* a focus slot, turn every context dial to the right place — and a malformed or unready ask converts that prepared depth into logistics. In the founder's own words, when a broken batched ask met a scheduled deep-focus slot: *"it makes it scream. It psych'ed itself up… and it is being left with nothing to do."* A silent failure is worse — *"the human is the only one witnessing the problem… it's like being gaslit by the software."* So the machinery below is not formatting: the Recommendation form exists so answering degrades to accept/override; status tokens exist so whose-ball-it-is never needs re-deriving; and the readiness bar for anything that schedules human attention is **walked-yourself-first** — a green parse is not readiness, and never let an unready ask *render* as ready. Tours are the extreme case, and they have their own authority: **load the `question-tours` skill before bundling questions for a human** — available ≠ loaded applies to tours too (a seat following this skill alone once shipped a half-tour and filed the missing half as a feature ask for a capability that had existed for weeks).
 
 ## 2. The minimal shape — what every ADR needs, no exceptions
 
@@ -34,7 +34,7 @@ Options:
 - **A — <petname>**: <description concrete enough to evaluate without leaving this block>
 - **B — <petname>**: <description — including what would make a reader choose it over A>
 
-**Recommendation**: (by <model-name>)
+**Recommendation**: (by <seat>, <model>, <YYYY-MM-DD>)   <!-- three fields, three catches: seat = who answers for it; model = substitutions visible; date = freshness checkable. No seat? model + date alone — the date is never optional --> 
 **<Letter> — <short pick>.** *Rationale*: <evidence named specifically enough to check — a file, an ADR, a measurement>. *Confidence*: <anchor> — because <reasons>. *If wrong*: <what would CHANGE this pick — nullification, never just cost — naming the option it flips to, when one exists>.
 
 **ANS:** (by <name>, <date optional>)
@@ -72,15 +72,18 @@ Every pair below is a real, uncorrected specimen from this ecosystem's own corpu
 **Always**: every `- Status:` line sits directly under a `### QST:` heading, no exceptions.
 *(14 instances.)*
 
-**Never** — wrong heading depth (`##` or `####`; parsers scan `###` only):
+**Never** — wrong heading depth (`##` or `####`):
 > `## QST-1 (ANSWERED 2026-07-03): official mechanism exists`
-**Always**: `### QST-1: ...` — exactly three hashes, always.
+**Always**: `### QST-1: ...` — exactly three hashes, always. Not because tools can't read anything else — the reference parser recognizes nav-code headings at **any** depth and loses no data (the founder's own Postel ruling, 2026-07-12, in `extractor.ts`) — but because off-depth earns a Warning-grade diagnostic and is structurally risky: a `##` question stops nesting and becomes its own top-level section boundary, reshaping the document's section tree. The parser is liberal so your data survives; the author stays conservative so the structure stays true.
 *(4 instances.)*
 
 **Never** — zero questions, *silently* (the absent-question class — syntactically perfect, epistemically false):
 > five reconstructed ADRs, full evidence tables, empty Open Questions surface — caught only by a human's `ls` ("I only see 5 ADRs with no QSTs. Is that normal?")
-**Always**: an ADR with no open questions is a *claim that nothing is open*. **The decision's status and the record's completeness are independent** — a decision settled years ago still leaves live questions, and they belong where the reader is: *the seed asks the human what happened; the ADR asks the reader what should happen.* If your seed does not ship with the ADR (backfill, conversion, staged authoring), the ADR carries its own questions; if nothing is genuinely open, say so deliberately — `NOT: no open questions — <why>` — never by omission. Before finishing any ADR, ask: **what will a reader be able to do after reading this?**
-*(5 instances in one campaign, plus the author's own rule violated four days after writing it — Sherd 5's debrief, 2026-09-02.)*
+
+— and never its **loud twin**, the heading-shaped assertion:
+> `### QST: none open` with a `NOT:` line beneath — a QST heading *mints* a live question unconditionally (no `- Status:` line defaults to `unanswered`), so this sits in the human's open-questions count **claiming the opposite of itself** (muster ADR-0008, 2026-10-07 — founder puzzled at a phantom open question; parser-verified against the extension's extractor)
+**Always**: an ADR with no open questions is a *claim that nothing is open*. **The decision's status and the record's completeness are independent** — a decision settled years ago still leaves live questions, and they belong where the reader is: *the seed asks the human what happened; the ADR asks the reader what should happen.* If your seed does not ship with the ADR (backfill, conversion, staged authoring), the ADR carries its own questions; if nothing is genuinely open, say so deliberately — `NOT: no open questions — <why>` directly under `## Questions`, **no QST heading** — never by omission, and never as a heading. (A heading that merely *looks* like a question is suppressed with `<!-- @adr-dismissed: <reason-slug> -->` — the questions reference teaches it.) Before finishing any ADR, ask: **what will a reader be able to do after reading this?**
+*(5 instances in one campaign, plus the author's own rule violated four days after writing it — Sherd 5's debrief, 2026-09-02; the loud twin: 1 instance, first wild specimen 2026-10-07.)*
 
 **Never** — options as an inline ribbon, or a pick-shaped question with no options at all (the underspecified ask):
 > `- Options: A — serve locally. B — deploy remote. C — both.` … then `**Recommendation**: **B.**`
@@ -88,6 +91,11 @@ Every pair below is a real, uncorrected specimen from this ecosystem's own corpu
 **Never** — the dangling letter: a Recommendation that opens `**A — <pick>**` above a QST with **zero option bullets** — the letter-form imitated, the block it refers to dropped. The founder, answering one in the wild: *"Yes, you're calling it Option A, but I don't see any other options."* He answered a choice that was never laid out — the letter is the memorable token, but the block is the answer surface, and a letter pointing at nothing spends the decider's attention reconstructing the space the author already knew.
 **Always**: one option per bullet — `- **A — <petname>**: <clear description>` — and the Recommendation's letter names a bullet **that exists in this QST's own block**. The block form is what makes the decider's side skimmable: letters anchor the pick, petnames anchor recall, descriptions carry enough to evaluate without leaving the block. No enumerable options? `Options: none (elicitation)`, with the Need line bounding the answer's shape — never a slot silently absent.
 *(Founder-caught three times across three live repos: 2026-09-11, inline ribbons + underspecified asks — cause: the mold's old `[List the options A / B / C …]` bracket taught the ribbon, fixed at v3.11.3; 2026-09-22, the dangling letter above, in a repo whose template was already current — proof that the rule alone doesn't hold without this specimen: labels get imitated, structure gets dropped, exactly the skipped-TL;DR class from this skill's own corpus figures.)*
+
+**Never** — lifecycle state written into answer prose (the **ANS-slot lifecycle overload** — ruled *undetectable by design*, so this teaching is the primary defense):
+> an ANS reading *"Option A to try… if jarring, B… will help decide whether to scrape this"* — a trial, not a verdict. The question read `answered` for **three days** while its real decision was pending — invisible to tours, the shelf, and `staleAnswered` alike, because **lifecycle state in prose has no form, and what has no form cannot be detected, only lost.**
+**Always**: the ANS states the decision actually made; a pending verdict gets its **own minted follow-up QST** (with a relates/blocks edge back), so the open thing is a real question the machinery can see. For small cases, the status valve is the lightweight middle: `- Status: answered — trial; verdict QST to follow by <condition>`. The ANS slot's contract is absolute: *this text IS the answer.*
+*(Field specimen with receipts, companion-étude ADR-0064, 2026-10; class predicted 2026-07-30 in vscode ADR-0032's annotated-status work; detection ruled closed — prevention-only — same arc. The ✓ reframe is Docent 5's; the answer-time follow-up affordance now exists tool-side, so the fix is often one click.)*
 
 ## 4. The handle grammar, in one line (plus the fragility worth knowing)
 

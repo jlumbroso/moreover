@@ -178,7 +178,7 @@ These make everything grep-able:
 
 ### adr-madr.md (standard MADR)
 **Use when**: Simple decision, options known
-**Result**: Clean decision record
+**Result**: Clean deliberation record
 
 **Decision tree**:
 ```

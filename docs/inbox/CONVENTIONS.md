@@ -100,6 +100,8 @@ Two rules that sound opposed but distinguish cleanly on **sanction**:
 
 One wording carries both: **seats are never *claimed*; they are inherited through the handoff protocol, or founded new.** Why it matters beyond etiquette: per-message attribution (§1) and any lineage analysis over the project's history both depend on occupant changes being auditable *within* persistent identities — a claimed seat corrupts provenance; a fragmented one loses it.
 
+**Scope: these name laws bind per hive.** A hive's registry is the namespace they live in; the same stem in *another* hive's registry is a different name, legally (live estate specimen: a "Surveyor 4.6" paused in one repo and a "Surveyor 5.1" founded in another — no claim, no collision). Cross-hive ambiguity is a *reach* problem, answered by addressing (`name@hive`; a multi-hive resolver refuses-and-asks rather than guessing), never by renaming anyone. *(A cold founding seat read §6 as estate-wide and had no way to tell — this line is the answer; the identity-layer formalization lives in the maintainers' census deliberation, pneumatic ADR-0026.)*
+
 ---
 
 ## Composition

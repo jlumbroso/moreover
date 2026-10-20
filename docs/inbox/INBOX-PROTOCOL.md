@@ -56,7 +56,7 @@ YYYY-MM-DD-HHMM-{from}-to-{to}-{subject}.md
 
 Where:
 
-- `YYYY-MM-DD-HHMM` — UTC timestamp at time of writing
+- `YYYY-MM-DD-HHMM` — UTC timestamp **at the moment the filename is reserved** (`just brief` stamps on reservation, which may precede the finished text by minutes and another brief's commit by more). Filename order is coarse chronology; for fine-grained sequence — who said what first — read commit order.
 - `{from}` — identifier of the participant writing the message (human name, AI agent name, role label — whatever the project's naming convention is)
 - `{to}` — identifier of the intended recipient
 - `{subject}` — kebab-case short topic

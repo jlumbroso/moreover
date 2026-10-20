@@ -1,16 +1,16 @@
 # kintsugi.lock — tool-written state; do not hand-edit.
 # What this repo HAS, per artifact (base version + exact canonical blob).
 kintsugi_schema: 1
-canonical_version: 3.11.6
-synced: '2026-10-11T17:57:45Z'
+canonical_version: 3.12.0
+synced: '2026-10-20T16:47:42Z'
 artifacts:
   .claude/agent.env:
     base_version: 3.11.6
     base_blob: c20a2608bb5fb10c4a26975071fcd4df92fbf299
     state_at_adopt: unmodified+current
   .claude/skills/adr-authoring/SKILL.md:
-    base_version: 3.11.6
-    base_blob: d7becc1a77ac7f6a4531a4bd1467a8a7f9d6a9d1
+    base_version: 3.12.0
+    base_blob: 7dab7c534d2591c3887dd3410fff8d9625d601ba
   .claude/skills/adr-authoring/references/depth.md:
     base_version: 3.11.6
     base_blob: 479e7aeaa4fac1c6fed7d2d57077e8c1ef58bca4
@@ -23,6 +23,12 @@ artifacts:
     base_version: 3.11.6
     base_blob: edb0148e4db42c6b6df925cdf9f2b8fc5ab2b968
     state_at_adopt: unmodified+current
+  .claude/skills/adrs4ai-tooling/SKILL.md:
+    base_version: 3.12.0
+    base_blob: 92f9239b3f3bd3f6c16f60f6e81945f7285b8ea5
+  .claude/skills/adrs4ai-tooling/references/seats-models-and-usage-caps.md:
+    base_version: 3.12.0
+    base_blob: 605522d466ce3290eec7e0beefd2005ba8999520
   .gitignore:
     state_at_adopt: unknown-base
   .vscode/vscode-optimization-guide.md:
@@ -34,14 +40,13 @@ artifacts:
   CLAUDE.md:
     state_at_adopt: unknown-base
   QUICK-START.md:
-    base_version: 3.11.6
-    base_blob: 0996d551ca5ac3c77e71463dc01f22e38560a547
+    base_version: 3.12.0
+    base_blob: dfe398524801cf15c83f4697d32619e2021fd6b9
   README.md:
     state_at_adopt: unknown-base
   docs/METHODOLOGY.md:
-    base_version: 3.11.6
-    base_blob: a3480a0e364fe47f30af328df7fb5f9d899b28d1
-    state_at_adopt: unmodified+current
+    base_version: 3.12.0
+    base_blob: dba2dc602bb8f1484d873481b5ad59b40d510e5d
   docs/adr/AGENTS.md:
     base_version: 3.11.6
     base_blob: df8c39920e78f66d9ca29a663b6ef56600bdb2b0
@@ -51,13 +56,11 @@ artifacts:
     base_blob: 3ad56716a2a0fbd13b706b9031e61db35c4f219f
     state_at_adopt: unmodified+current
   docs/adr/templates/adr-madr.md:
-    base_version: 3.11.6
-    base_blob: 6801bd39e142abde8a2ff55f848fcf5dc152cd88
-    state_at_adopt: unmodified+current
+    base_version: 3.12.0
+    base_blob: 09622e4274c73f946b8f96f29e93c8b9c172440c
   docs/adr/templates/adr.md:
-    base_version: 3.11.6
-    base_blob: ffdef77531fa0283e1e7396a55f3795c250c2bb6
-    state_at_adopt: unmodified+current
+    base_version: 3.12.0
+    base_blob: 7531fbba230b6c1399cc2ae8488b0055f739da41
   docs/adr/templates/debrief.md:
     base_version: 3.11.6
     base_blob: d739a95efaea09d6be0fe9b82653778bd36cb1bf
@@ -71,21 +74,18 @@ artifacts:
     base_blob: 9ccde253bfc98035b50f96eb270fe9e3be2603f7
     state_at_adopt: unmodified+current
   docs/inbox/CONVENTIONS.md:
-    base_version: 3.11.6
-    base_blob: b86ecdd8136b8b3ae008cb46a4325ea1b1e3ed31
-    state_at_adopt: unmodified+current
+    base_version: 3.12.0
+    base_blob: 06f3df6ef76f28855005d908039809b1afb68feb
   docs/inbox/ENCODING-MAP.md:
     base_version: 3.11.6
     base_blob: 34b80f2a572b700f6eb7194ed58ab55b6694fbb9
     state_at_adopt: unmodified+current
   docs/inbox/INBOX-PROTOCOL.md:
-    base_version: 3.11.6
-    base_blob: 53c33cec9e69bbf656b96f01e771aad61ebca8f5
-    state_at_adopt: unmodified+current
+    base_version: 3.12.0
+    base_blob: f81dd3524ea95d6caa40b6e8bdb2dba162d60e85
   docs/inbox/ONBOARDING.md:
-    base_version: 3.11.6
-    base_blob: b97c55df80a74dfa292fdcbb9738893a29d37e4f
-    state_at_adopt: unmodified+current
+    base_version: 3.12.0
+    base_blob: 2c3ab060c7e6e25841ffeb5905a03e858eac4b57
   justfile:
     state_at_adopt: unknown-base
   scripts/groups-lookup.py:

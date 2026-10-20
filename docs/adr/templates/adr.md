@@ -1,4 +1,10 @@
-<!-- adr template version: "adr 3.11.5" -->
+<!-- adr template version: "adr 3.12.0" -->
+<!--
+adr teaching map: the example is not the teaching — these are the up-links from this file to what teaches its form; load them rather than winging it. (Sibling: the template-version marker dates the mold this file was minted from.)
+  skill: adr-authoring
+  mcp: adrs4ai
+  plugin: adr@adrs4ai
+-->
 
 # [ADR Title - Decision/Topic]
 
@@ -11,31 +17,11 @@
 
 ---
 
-## Quick Reference
-
-**Navigation codes** (for grep):
-- `QST:` Questions  
-- `ANS:` Answers
-- `COD:` Code examples
-- `API:` API calls
-- `FIL:` Files to examine
-- `DOC:` Documentation
-- `NOT:` Notes, remarks, observations
-
-**Find things**:
-```bash
-grep -E '^### QST(-[A-Za-z0-9-]{1,24})?:' file.md   # All questions, both canonical forms — a bare-QST grep silently misses every handled question
-grep 'Status: unanswered' file.md                   # Awaiting the human (by design, this misses unresolved/deferred — those are not the human's ball)
-grep '^### COD:' file.md                             # Code examples
-```
-
----
-
 ## Originating Context
 
 **Source**: [Type and link to where this ADR originated, e.g.:
 - `Human dump (below)` — stream-of-consciousness from a contributor
-- `Brief: <path/to/brief.md>` — a brief from another contributor (see also: [INBOX-PROTOCOL.md](../../../INBOX-PROTOCOL.md) if your project uses the inbox-based coordination protocol)
+- `Brief: <path/to/brief.md>` — a brief from another contributor (see also: [INBOX-PROTOCOL.md](../../inbox/INBOX-PROTOCOL.md) if your project uses the inbox-based coordination protocol)
 - `Seed: <path/to/seed.md>` — a seed that was chunked into multiple ADRs
 - `Prior ADR open question: <ADR-xxxx#QST-N>` — a follow-up
 - `Code review / observation / external discussion / etc.`
@@ -72,7 +58,7 @@ Multiple sources may be listed.]
 
 **Use the `QST:` / `ANS:` codes for open questions.** They're required for grep-ability and for any tooling (e.g., the ADRs4AI extension) that parses ADRs as structured documents. Open questions outside this format are invisible to those tools.
 
-**Protocol** (added 2026-04-22 by Opus 4.7; superseded to ORRCF 2026-09, founder-ratified): every QST block must include a `**Recommendation**: (by [model-name])` section between the options and the `**ANS:**` block. The human should not have to extract the AI's lean from prose. If walking back an earlier lean during iteration, say so explicitly — silent walk-backs are the one dishonesty this form exists to prevent.
+**Protocol** (added 2026-04-22 by Opus 4.7; superseded to ORRCF 2026-09, founder-ratified; byline completed 2026-10-04): every QST block must include a `**Recommendation**: (by [seat], [model], [YYYY-MM-DD])` section between the options and the `**ANS:**` block. The byline's three fields make three different catches possible: the **seat** says who answers for the lean, the **model** makes a silent substitution visible (per-message attribution's whole point), and the **date** makes freshness checkable — a recommendation is a claim about a moment. A session with no seat writes the model and date alone; the date is never optional. The human should not have to extract the AI's lean from prose. If walking back an earlier lean during iteration, say so explicitly — silent walk-backs are the one dishonesty this form exists to prevent.
 
 **The ORRCF form** (pronounced *or-SEFF*; ratified via the format-stability register, 2026-08-25 — the catch-the-author lineage, completed): a recommendation carries five parts, spelled out once here — **Options, Recommendation, Rationale, Confidence, Falsifier**:
 
@@ -90,9 +76,11 @@ A recommendation whose author can be caught is worth more than one that can only
 
 **Answering**: the `by`/`from` keyword is what makes a byline — `**ANS:** (by <name>, <date optional>)`; a bare `(Name)` stays part of the answer text. Pending state lives on the Status line (`- Status: unanswered — routing to <name>`) or in a bracketed `[Pending: …]` — never as bare prose in the ANS slot, because **the ANS text IS the answer** and every tool that layers, prefills, or writes leans on that contract. `[Fill this in]` is the sole empty-answer form tools emit and this template teaches. **And the block's closing `---` is load-bearing, not typography**: a QST block ends at the next `###` heading or bare `---`, and the answer layer collects everything until then — so trailing commentary (a `NOT:` filing note, a routing remark) goes **after a `---`**, never bare below the ANS slot, or it is read as answer content.
 
+**No open questions?** Say it with `NOT: no open questions — <why>` directly under `## Questions` — **never with a `### QST:` heading**. A QST heading *mints* a live question unconditionally (no `- Status:` line defaults to *unanswered*), so a `### QST: none open` lands in the human's open-questions count asserting the opposite of itself (field specimen: a real repo's ADR-0008, 2026-10-07, parser-verified). To suppress a heading that merely *looks* like a question without being one, the machine channel is `<!-- @adr-dismissed: <reason-slug> -->` on the heading line (depth: the questions reference).
+
 ### QST: [Question text]
 - Status: unanswered
-- Why asking: [How this shapes my approach]
+- Why asking: [How this shapes my approach — restate any context the question leans on HERE: the answerer may read only this block, and "see the procedure above" cost a real answerer several dozen round-trips (the Options rule, applied to the question line)]
 - Need: [pick a letter (or override — an answer in any shape is complete) | yes/no | explanation | etc]
 
 Options:
@@ -105,7 +93,7 @@ Options:
      enumerable options (pure elicitation) says so explicitly — `Options: none (elicitation)` —
      and the Need line then bounds the answer's expected shape. Full specification is never optional. -->
 
-**Recommendation**: (by [model-name, e.g. Opus 4.7])
+**Recommendation**: (by [seat], [model], [date — e.g. Shipwright 5, Claude Fable 5, 2026-10-04; no seat? model + date alone])
 
 [**B — short name.** *Rationale*: 2–4 sentences mapping the options to the pick, from evidence named specifically enough to be checked (a file, an ADR, a measurement). *Confidence*: <anchor> — because <reasons>; read as an action band (≥0.90 act · 0.60–0.85 your call · ≤0.55 route to another mind). *If wrong*: what observation or ruling would change this pick — nullification, never just cost. If walking back an earlier lean, say so explicitly.]
 
@@ -126,7 +114,7 @@ Options:
 - **A — [petname]**: [description]
 - **B — [petname]**: [description]
 
-**Recommendation**: (by [model-name])
+**Recommendation**: (by [seat], [model], [date])
 
 [Pick. *Rationale* from checkable evidence. *Confidence* — because. *If wrong*: the nullifier.]
 

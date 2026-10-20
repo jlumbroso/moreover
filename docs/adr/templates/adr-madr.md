@@ -1,5 +1,6 @@
-<!-- adr template version: "adr-madr 3.10.0" -->
-<!-- kept in deliberate homage to MADR — Markdown Architectural Decision Records, the lineage this template family descends from. This is the simple-decisions form: use it when a decision needs recording, not discussion. The deliberation-native form is adr.md. (Ruling: QST-MADR-FATE, 2026-08-13 — "keeping the template, acknowledging it, is good form.") -->
+<!-- adr template version: "adr-madr 3.12.0" -->
+<!-- kept in deliberate homage to MADR — Markdown Architectural Decision Records, the lineage this template family descends from. This is the simple-decisions form: use it when a decision needs recording, not discussion. The deliberation-native form is adr.md. Mint with `just adr "<title>" madr`. (Ruling: QST-MADR-FATE, 2026-08-13 — "keeping the template, acknowledging it, is good form.") -->
+<!-- A question is legal here: when a simple decision still carries ONE open question, add a `### QST-<ID>: …` heading with its own `- Status:` line (under an "Open question" section if you like) — parsers and the ADR Manager read it identically in both molds (field-proven: a founding seat's MADR question was answered through the extension within the hour). Two or more questions sharing an answering slot → that is adr.md's job, and the question-tours skill's. -->
 
 # [short title of solved problem and solution]
 
