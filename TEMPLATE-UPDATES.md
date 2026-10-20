@@ -1,5 +1,11 @@
 # Template updates
 
+## 2026-10-20 — canonical → v3.12.1
+
+- replace: `.claude/skills/adrs4ai-tooling/SKILL.md` (→ v3.12.1)
+
+Flagged (untouched, need attention): `.claude/skills/question-tours/SKILL.md`
+
 ## 2026-10-20 — reconcile (decisions recorded)
 
 - keep: `.claude/skills/question-tours/SKILL.md` — Kept at the v3.12.0 wave (Tender 5, Shipwright 2026-10-20-1640): justfile divergence is the fleet transitions' local truth (pneumatic-wired + door recipes + quote() — same destination canon's ADR-0044 molt reaches, locally richer); per-repo docs (README/CLAUDE/.gitignore/crew docs) remain each repo's own, verified in prior campaigns. Resident crews may take canon any time: kintsugi reconcile <file> --take.
