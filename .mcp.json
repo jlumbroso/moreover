@@ -13,7 +13,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@adrs4ai/mcp",
+        "@adrs4ai/mcp@0.1.0",
         "."
       ]
     }
