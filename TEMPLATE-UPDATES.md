@@ -1,5 +1,9 @@
 # Template updates
 
+## 2026-10-20 — reconcile (decisions recorded)
+
+- take: `.claude/skills/question-tours/SKILL.md` → v3.12.1
+
 ## 2026-10-20 — canonical → v3.12.1
 
 - replace: `.claude/skills/adrs4ai-tooling/SKILL.md` (→ v3.12.1)

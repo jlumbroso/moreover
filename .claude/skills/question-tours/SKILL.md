@@ -5,6 +5,8 @@ description: Use when creating, repairing, validating, walking, offering, or ret
 
 # QuestionTours
 
+<!-- skill version: "question-tours 3.12.0" — co-versioned INTERIM stamp at graduation; its own version stem is pending Mint's docket (renames are cheap, fossils are not: this stamp dates the copy, the stem names the lineage) -->
+
 Maintained by Docent 5 (QuestionTours owner). Seeded from Shipwright 5's HQ
 field guide; **standalone by Shipwright's ruling**, graduating into the template
 after the vocabulary freeze. Verbs ruled by Mint 5 (hub ledger №65 as amended by
@@ -205,6 +207,52 @@ idempotent and does arbitrary rearrangement in one call.
 
 ---
 
+### A stop renders its question's HEADING — so the heading must state the current ask
+
+**Field-proven, 2026-10-11.** A question answered *as a trial* was re-opened to
+collect the verdict. The tour stop then rendered the old heading — *"Should the
+LIVE streaming turn group too?"* — while the actual ask was *"has the snap proven
+jarring; keep A or move?"* **The stop lied about its own ask, and the comment
+could not save it**, because the reader reads the heading first.
+
+So when an answer creates a new question — a trial awaiting a verdict, an idea
+parked inside an ANS — **write the new question as its own QST.** Do not re-open
+the old one:
+
+- ✅ original stays `answered` (it *was* answered), its ANS intact as the trial
+  record; a **new** QST states the verdict question; the stop points at the new one.
+- ❌ re-open the original: you lose the true fact that a decision was made, *and*
+  every tour carrying it now displays a question nobody is being asked.
+
+**The test, before you point a stop at anything**: read only the heading. If it
+does not state what you are asking for right now, the stop is dishonest no matter
+how good your comment is. Fix the substrate, not the annotation.
+
+**Link the two, so the answered one stops looking finished.** The original keeps
+a forward pointer on its own line, outside the ANS block:
+
+```
+**Follows up on**: adr:0064#qst-stream-verdict
+```
+
+**Write it bare — no bullet** (Riddle, ledger `7603a65`): a boundary marker
+dresses like its family's canonical form, and `- **Follows up on**:` reads as
+preamble-field style, which invites the marker into positions it does not
+govern. The parser *reads* the bulleted form tolerantly; you still author the
+bare one.
+
+**Never inside the `**ANS:**` block.** The slot's contract is *this text IS the
+answer*, every overload is a question that silently vanishes (Riddle's
+ADR-0032 ruling, 2026-07-30, which this specimen proved 2.5 months later), and
+`writeAnswer`'s REPLACE branch would delete a marker it found in there.
+
+**You usually will not type this.** Answering through the panel now offers
+"this answer opens a follow-up question" (v0.7.131): it mints the new QST with
+a blessed handle, writes the marker, and refuses the *whole* write — answer
+included — on a slug collision, so it cannot leave you a dangling reference.
+
+---
+
 ## 5. Petnames, and the reference grammar
 
 **Petname**: a 4-character Crockford base32 handle (`K7P2`) for each question,
@@ -333,18 +381,55 @@ Rows with *named* history carry their incident; rows without stay bare.
 
 ## 8. What is invocable TODAY — read this before a trial
 
+**Check your preconditions first — this section is about CAPABILITIES, not
+venues, and not every repo has them.** The skill now travels to every
+instantiation, so read each line as *"if you have X"*, never as *"this exists
+here."*
+
+| you have | you get |
+|---|---|
+| **nothing but the files** | authoring by hand with §4's discipline; `retire` by editing the JSON; the whole doctrine |
+| **a `just tour-walk` recipe** | the walk, the warnings, a non-zero exit on structural failure |
+| **the ADR Manager extension** | the panel walk, the mint gate, Retire Tour, the prologue card, the follow-up mint |
+
+If a bullet below names something you cannot invoke, **that is the answer, not a
+bug** — the capability is wired per-repo and yours may not have it yet.
+
 The lifecycle above is **ruled and the engine is built and tested**
 (`packages/core/src/index/tourPatch.ts`). The **CLI mouth lands at Phase 2**, so
 right now:
 
-- ✅ **Walking works**: `just tour-walk [tour-slug]` — in `vscode-adrs-for-ai`
-  and `caring-form`. Renders every stop as the panel does, prints the three
-  warnings, exits non-zero on structural failure.
-- ✅ **Retiring works**, extension-side: right-click a tour → **Retire Tour**
-  (Undo on the toast). Human-invoked.
-- ✅ **The mint gate works**, extension-side, on mint-from-filter.
+- ✅ **Walking works** *wherever a `just tour-walk` recipe is wired* — as of
+  2026-10-12 that is `vscode-adrs-for-ai` and `caring-form`; elsewhere, not yet.
+  Renders every stop as the panel does, prints the warnings, exits non-zero on
+  structural failure.
+- ✅ **Retiring works**, two mouths:
+  - *Human (needs the extension)*: right-click a tour → **Retire Tour** (Undo on the toast).
+  - *Agent (needs nothing)*: **set `"retired": true` in the tour's JSON.** That is not a
+    workaround — `setRetired` is a one-field flip and this is the same single
+    field it writes. Nothing else needs touching.
+
+  **`retire` ≠ `delete`.** The file stays, the record survives, it stops
+  asking. You never need permission to stop asking for something.
+
+  > **Retire your own stale tours without being asked.** A tour outlives the
+  > session that minted it — Wayfinder's 2026-10-11 finding, **minter-amnesia**:
+  > caring-form carried two tours with stops open 56–69 days because the minter
+  > (Commodore) had compacted several times since July, so the seat that would
+  > have reached for the gesture was no longer at the keyboard. An unretired
+  > tour is a **live ask** that makes him schedule time. If you inherit a lane,
+  > check its tours; if you mint one, do not rely on future-you remembering it.
+- ✅ **The mint gate works** *(needs the extension)*, on mint-from-filter.
 - ⏳ **`tour add`/`drop`/`reorder`/`annotate`/`show` have no mouth yet.** The
   engine exists; nothing calls it from a shell or an MCP tool.
+- ✅ **The follow-up mint works** *(needs the extension, v0.7.131+)*: when you answer in
+  the panel, a checkbox offers to mint the question your answer just created.
+  Type the new ask as a one-line title — it is required, never prefilled, because
+  a title derived from the parent reproduces the old-question-in-new-clothes
+  defect. Use it instead of re-opening an answered question.
+- ✅ **The prologue works** *(authoring needs nothing; the card needs the extension, v0.7.134+)*: author `prologue: { rationale, context? }`
+  in the tour JSON and the panel shows it on **title** click. No prologue, no
+  affordance. The CLI walk does not print it yet — that rides the pin.
 
 **So until the mouth lands**: hand-authoring is still the only way to produce a
 tour outside the extension — and the discipline in §4 is what to apply by hand.
