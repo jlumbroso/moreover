@@ -8,6 +8,14 @@
         "--headless",
         "--browser=chromium"
       ]
+    },
+    "adrs4ai": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@adrs4ai/mcp",
+        "."
+      ]
     }
   }
 }
