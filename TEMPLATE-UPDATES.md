@@ -1,5 +1,12 @@
 # Template updates
 
+## 2026-10-21 — canonical → v3.12.2
+
+- replace: `.claude/skills/adr-authoring/SKILL.md` (→ v3.12.2)
+- replace: `.claude/skills/adrs4ai-tooling/SKILL.md` (→ v3.12.2)
+- create: `scripts/pneumatic-shim.sh` (new from v3.12.2)
+- create: `docs/adr/templates/placeholders.yaml` (new from v3.12.2)
+
 ## 2026-10-20 — reconcile (decisions recorded)
 
 - take: `.claude/skills/question-tours/SKILL.md` → v3.12.1
